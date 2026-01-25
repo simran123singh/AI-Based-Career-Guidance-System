@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Career AI Assistant - Modern Career Guidance</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #10a37f;
+            --primary-hover: #0d8c6c;
+            --bg-color: #ffffff;
+            --sidebar-bg: #f7f7f8;
+            --text-primary: #2d333a;
+            --text-secondary: #6e6e80;
+            --border-color: #e5e5e5;
+            --message-bg-user: #10a37f;
+            --message-bg-bot: #f7f7f8;
+            --shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        [data-theme="dark"] {
+            --bg-color: #343541;
+            --sidebar-bg: #202123;
+            --text-primary: #ececf1;
+            --text-secondary: #acacbe;
+            --border-color: #4a4a57;
+            --message-bg-user: #10a37f;
+            --message-bg-bot: #444654;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-color);
+            color: var(--text-primary);
+            transition: all 0.3s ease;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .app-container {
+            display: flex;
+            height: 100vh;
+        }
+
+        /* Sidebar Styles */
+        .sidebar {
+            width: 260px;
+            background: var(--sidebar-bg);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            transition: all 0.3s ease;
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 600;
+            font-size: 16px;
+            color: var(--text-primary);
+        }
+
+        .brand-icon {
+            width: 32px;
+            height: 32px;
+            background: var(--primary-color);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+
+        .new-chat-btn {
+            width: 100%;
+            padding: 12px;
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            justify-content: center;
+            margin-top: 10px;
+        }
+
+        .new-chat-btn:hover {
+            background: var(--primary-hover);
+            transform: translateY(-1px);
+        }
+
+        .quick-actions {
+            padding: 20px;
+            flex-grow: 1;
+            overflow-y: auto;
+        }
+
+        .section-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 12px;
+        }
+
+        .action-chip {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px;
+            background: var(--bg-color);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 14px;
+            color: var(--text-primary);
+        }
+
+        .action-chip:hover {
+            background: var(--primary-color);
+            color: white;
+            transform: translateX(4px);
+        }
+
+        .action-chip i {
+            width: 16px;
+            text-align: center;
+        }
+
+        /* Main Chat Area */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: var(--bg-color);
+        }
+
+        .chat-header {
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: var(--bg-color);
+        }
+
+        .chat-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .theme-toggle {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+        }
+
+        .theme-toggle:hover {
+            background: var(--border-color);
+        }
+
+        .messages-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .message {
+            display: flex;
+            gap: 16px;
+            max-width: 100%;
+            animation: messageSlide 0.3s ease-out;
+        }
+
+        @keyframes messageSlide {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+
+        .user-avatar {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .bot-avatar {
+            background: var(--text-secondary);
+            color: white;
+        }
+
+        .message-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .message-text {
+            background: var(--message-bg-bot);
+            padding: 16px;
+            border-radius: 12px;
+            line-height: 1.5;
+            white-space: pre-line;
+            color: var(--text-primary);
+        }
+
+        .user-message .message-text {
+            background: var(--message-bg-user);
+            color: white;
+        }
+
+        .user-message {
+            flex-direction: row-reverse;
+        }
+
+        .user-message .message-content {
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .user-message .message-text {
+            background: var(--message-bg-user);
+            color: white;
+            max-width: 80%;
+        }
+
+        /* Input Area */
+        .input-container {
+            padding: 24px;
+            border-top: 1px solid var(--border-color);
+            background: var(--bg-color);
+        }
+
+        .input-wrapper {
+            position: relative;
+            max-width: 768px;
+            margin: 0 auto;
+        }
+
+        .message-input {
+            width: 100%;
+            padding: 16px 48px 16px 16px;
+            border: 2px solid var(--border-color);
+            border-radius: 12px;
+            background: var(--bg-color);
+            color: var(--text-primary);
+            font-size: 16px;
+            resize: none;
+            transition: all 0.2s ease;
+            min-height: 56px;
+            max-height: 200px;
+        }
+
+        .message-input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(16, 163, 127, 0.1);
+        }
+
+        .send-button {
+            position: absolute;
+            right: 12px;
+            bottom: 12px;
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .send-button:hover:not(:disabled) {
+            background: var(--primary-hover);
+            transform: scale(1.05);
+        }
+
+        .send-button:disabled {
+            background: var(--text-secondary);
+            cursor: not-allowed;
+        }
+
+        /* Typing Indicator */
+        .typing-indicator {
+            display: none;
+            gap: 16px;
+            align-items: center;
+            padding: 8px 0;
+        }
+
+        .typing-dots {
+            display: flex;
+            gap: 4px;
+        }
+
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--text-secondary);
+            border-radius: 50%;
+            animation: typingBounce 1.4s infinite ease-in-out;
+        }
+
+        .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+        .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+
+        @keyframes typingBounce {
+            0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; }
+            40% { transform: scale(1); opacity: 1; }
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .sidebar {
+                position: fixed;
+                left: -260px;
+                z-index: 1000;
+                height: 100vh;
+            }
+
+            .sidebar.active {
+                left: 0;
+            }
+
+            .mobile-menu-btn {
+                display: block;
+            }
+        }
+
+        /* Scrollbar Styling */
+        .messages-container::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .messages-container::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .messages-container::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 3px;
+        }
+
+        .messages-container::-webkit-scrollbar-thumb:hover {
+            background: var(--text-secondary);
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <div class="brand">
+                    <div class="brand-icon">
+                        <i class="fas fa-robot"></i>
+                    </div>
+                    Career AI
+                </div>
+                <button class="new-chat-btn" onclick="startNewChat()">
+                    <i class="fas fa-plus"></i>
+                    New Career Chat
+                </button>
+            </div>
+
+            <div class="quick-actions">
+                <div class="section-title">Career Roadmaps</div>
+                <div class="action-chip" onclick="sendMessage('AI and Machine Learning career roadmap')">
+                    <i class="fas fa-brain"></i>
+                    AI & ML Engineer
+                </div>
+                <div class="action-chip" onclick="sendMessage('Data Science career path')">
+                    <i class="fas fa-chart-line"></i>
+                    Data Scientist
+                </div>
+                <div class="action-chip" onclick="sendMessage('Cybersecurity career roadmap')">
+                    <i class="fas fa-shield-alt"></i>
+                    Cybersecurity
+                </div>
+                <div class="action-chip" onclick="sendMessage('Cloud Computing career guide')">
+                    <i class="fas fa-cloud"></i>
+                    Cloud Engineer
+                </div>
+
+                <div class="section-title" style="margin-top: 24px;">Job Market</div>
+                <div class="action-chip" onclick="sendMessage('Current job market trends')">
+                    <i class="fas fa-trending-up"></i>
+                    Market Insights
+                </div>
+                <div class="action-chip" onclick="sendMessage('High demand skills 2024')">
+                    <i class="fas fa-bolt"></i>
+                    In-Demand Skills
+                </div>
+                <div class="action-chip" onclick="sendMessage('Salary information for tech jobs')">
+                    <i class="fas fa-money-bill-wave"></i>
+                    Salary Guide
+                </div>
+
+                <div class="section-title" style="margin-top: 24px;">Quick Help</div>
+                <div class="action-chip" onclick="sendMessage('How to choose the right career?')">
+                    <i class="fas fa-compass"></i>
+                    Career Guidance
+                </div>
+                <div class="action-chip" onclick="sendMessage('Interview preparation tips')">
+                    <i class="fas fa-comments"></i>
+                    Interview Prep
+                </div>
+                <div class="action-chip" onclick="sendMessage('Resume building guide')">
+                    <i class="fas fa-file-alt"></i>
+                    Resume Help
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <div class="chat-header">
+                <div class="chat-title">Career AI Assistant</div>
+                <button class="theme-toggle" onclick="toggleTheme()">
+                    <i class="fas fa-moon" id="theme-icon"></i>
+                </button>
+            </div>
+
+            <div class="messages-container" id="messagesContainer">
+                <!-- Welcome Message -->
+                <div class="message">
+                    <div class="message-avatar bot-avatar">
+                        <i class="fas fa-robot"></i>
+                    </div>
+                    <div class="message-content">
+                        <div class="message-text">
+                            🌟 **Welcome to Your Enhanced Career AI Assistant!** 🌟
+
+I'm your intelligent career guide with **advanced features**:
+
+🎯 **Career Roadmap Generator** - Get step-by-step learning paths
+📊 **Real-time Job Market Insights** - Latest trends and demands  
+🚀 **Specialized Career Domains** - In-depth guidance for modern careers
+💡 **Skill Development Plans** - Structured learning approaches
+
+**Try asking me:**
+• "Show me AI career roadmap"
+• "What's the job market for data science?"
+• "How to become a cybersecurity expert?"
+• "Blockchain developer career path"
+
+**What career would you like to explore?**
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Typing Indicator -->
+            <div class="typing-indicator" id="typingIndicator">
+                <div class="message-avatar bot-avatar">
+                    <i class="fas fa-robot"></i>
+                </div>
+                <div class="typing-dots">
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                </div>
+            </div>
+
+            <!-- Input Area -->
+            <div class="input-container">
+                <div class="input-wrapper">
+                    <textarea 
+                        class="message-input" 
+                        id="messageInput" 
+                        placeholder="Ask about careers, roadmaps, job market..." 
+                        rows="1"
+                        autocomplete="off"
+                    ></textarea>
+                    <button class="send-button" id="sendButton" onclick="handleSendMessage()">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Theme Management
+        function toggleTheme() {
+            const body = document.body;
+            const themeIcon = document.getElementById('theme-icon');
+            const isDark = body.getAttribute('data-theme') === 'dark';
+            
+            if (isDark) {
+                body.removeAttribute('data-theme');
+                themeIcon.className = 'fas fa-moon';
+                localStorage.setItem('theme', 'light');
+            } else {
+                body.setAttribute('data-theme', 'dark');
+                themeIcon.className = 'fas fa-sun';
+                localStorage.setItem('theme', 'dark');
+            }
+        }
+
+        // Load saved theme
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme === 'dark') {
+            document.body.setAttribute('data-theme', 'dark');
+            document.getElementById('theme-icon').className = 'fas fa-sun';
+        }
+
+        // Chat Management
+        let isSending = false;
+
+        function startNewChat() {
+            document.getElementById('messagesContainer').innerHTML = `
+                <div class="message">
+                    <div class="message-avatar bot-avatar">
+                        <i class="fas fa-robot"></i>
+                    </div>
+                    <div class="message-content">
+                        <div class="message-text">
+                            🌟 **Welcome to Your Enhanced Career AI Assistant!** 🌟
+
+I'm your intelligent career guide with **advanced features**:
+
+🎯 **Career Roadmap Generator** - Get step-by-step learning paths
+📊 **Real-time Job Market Insights** - Latest trends and demands  
+🚀 **Specialized Career Domains** - In-depth guidance for modern careers
+💡 **Skill Development Plans** - Structured learning approaches
+
+**What career would you like to explore?**
+                        </div>
+                    </div>
+                </div>
+            `;
+            scrollToBottom();
+        }
+
+        function sendMessage(message) {
+            if (isSending) return;
+            
+            const messageInput = document.getElementById('messageInput');
+            messageInput.value = message;
+            handleSendMessage();
+        }
+
+        function handleSendMessage() {
+            if (isSending) return;
+            
+            const messageInput = document.getElementById('messageInput');
+            const message = messageInput.value.trim();
+            
+            if (!message) {
+                return;
+            }
+            
+            // Disable the button and input temporarily
+            isSending = true;
+            document.getElementById('sendButton').disabled = true;
+            messageInput.disabled = true;
+            
+            // Add user message to chat
+            addMessage(message, true);
+            messageInput.value = '';
+            
+            // Reset textarea height
+            messageInput.style.height = 'auto';
+            
+            // Show typing indicator
+            showTyping();
+            
+            // Send message to server
+            sendToServer(message);
+        }
+
+        function sendToServer(message) {
+            // Create form data
+            const formData = new URLSearchParams();
+            formData.append('message', message);
+            
+            // Send AJAX request
+            fetch('/ask', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: formData
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                // Hide typing indicator
+                hideTyping();
+                
+                if (data.error) {
+                    addMessage('Error: ' + data.error, false, true);
+                } else if (data.response) {
+                    addMessage(data.response);
+                } else {
+                    addMessage('Sorry, I did not understand that. Can you try asking differently?');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                hideTyping();
+                addMessage('Sorry, there was a network error. Please check your connection and try again.', false, true);
+            })
+            .finally(() => {
+                // Re-enable the button and input
+                isSending = false;
+                document.getElementById('sendButton').disabled = false;
+                document.getElementById('messageInput').disabled = false;
+                document.getElementById('messageInput').focus();
+            });
+        }
+
+        function showTyping() {
+            document.getElementById('typingIndicator').style.display = 'flex';
+            scrollToBottom();
+        }
+
+        function hideTyping() {
+            document.getElementById('typingIndicator').style.display = 'none';
+        }
+
+        function addMessage(text, isUser = false, isError = false) {
+            const messagesContainer = document.getElementById('messagesContainer');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${isUser ? 'user-message' : ''}`;
+            
+            if (isError) {
+                messageDiv.innerHTML = `
+                    <div class="message-avatar user-avatar">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                    <div class="message-content">
+                        <div class="message-text" style="background: #f56565; color: white;">
+                            ${text}
+                        </div>
+                    </div>
+                `;
+            } else if (isUser) {
+                messageDiv.innerHTML = `
+                    <div class="message-avatar user-avatar">
+                        <i class="fas fa-user"></i>
+                    </div>
+                    <div class="message-content">
+                        <div class="message-text">
+                            ${text}
+                        </div>
+                    </div>
+                `;
+            } else {
+                messageDiv.innerHTML = `
+                    <div class="message-avatar bot-avatar">
+                        <i class="fas fa-robot"></i>
+                    </div>
+                    <div class="message-content">
+                        <div class="message-text">
+                            ${text}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            messagesContainer.appendChild(messageDiv);
+            scrollToBottom();
+        }
+
+        function scrollToBottom() {
+            const messagesContainer = document.getElementById('messagesContainer');
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        // Handle Enter key in input (with Shift for new line)
+        document.getElementById('messageInput').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSendMessage();
+            }
+        });
+
+        // Auto-resize textarea
+        document.getElementById('messageInput').addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = Math.min(this.scrollHeight, 200) + 'px';
+        });
+
+        // Auto-focus on input when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('messageInput').focus();
+            scrollToBottom();
+        });
+
+        // Auto-scroll when new messages are added
+        const messagesContainer = document.getElementById('messagesContainer');
+        const observer = new MutationObserver(function() {
+            scrollToBottom();
+        });
+        observer.observe(messagesContainer, { childList: true, subtree: true });
+    </script>
+</body>
+</html>

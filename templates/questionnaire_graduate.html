@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Graduate Career Assessment - CareerPath AI</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: #f8f9fa;
+        }
+        .navbar-brand { font-weight: 700; }
+        .question-card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            border: none;
+        }
+        .skill-tag {
+            display: inline-block;
+            background: #e9ecef;
+            padding: 8px 15px;
+            margin: 5px;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .skill-tag.selected {
+            background: #28a745;
+            color: white;
+        }
+        .progress-bar { background: linear-gradient(45deg, #28a745, #20c997); }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark bg-success">
+        <div class="container">
+            <a class="navbar-brand" href="/dashboard">🎯 CareerPath AI</a>
+            <span class="navbar-text">Graduate Assessment</span>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- Progress Bar -->
+        <div class="progress mb-4" style="height: 10px;">
+            <div class="progress-bar" style="width: 25%"></div>
+        </div>
+
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <div class="text-center mb-4">
+                    <h1 class="fw-bold">📚 Graduate Career Assessment</h1>
+                    <p class="lead">Advanced career guidance for Bachelor's degree holders</p>
+                </div>
+
+                <form action="/submit-questionnaire" method="POST">
+                    <input type="hidden" name="education_level" value="graduate">
+
+                    <!-- Degree Specialization -->
+                    <div class="question-card">
+                        <div class="card-body p-4">
+                            <h4 class="mb-3">1. What is your degree specialization?</h4>
+                            <select class="form-select" name="field_of_study" required>
+                                <option value="">Select your specialization</option>
+                                <option value="computer_science">Computer Science / IT</option>
+                                <option value="engineering">Engineering</option>
+                                <option value="business_mba">Business Administration</option>
+                                <option value="science">Pure Sciences</option>
+                                <option value="commerce">Commerce / Finance</option>
+                                <option value="arts">Arts & Humanities</option>
+                                <option value="medical">Medical / Healthcare</option>
+                                <option value="law">Law</option>
+                                <option value="education">Education</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Work Experience -->
+                    <div class="question-card">
+                        <div class="card-body p-4">
+                            <h4 class="mb-3">2. What is your work experience level?</h4>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="radio" name="experience" value="fresher" id="exp1" checked>
+                                <label class="form-check-label" for="exp1">Fresher (0-1 years)</label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="radio" name="experience" value="entry_level" id="exp2">
+                                <label class="form-check-label" for="exp2">Entry Level (1-3 years)</label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="radio" name="experience" value="mid_level" id="exp3">
+                                <label class="form-check-label" for="exp3">Mid Level (3-6 years)</label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="radio" name="experience" value="senior" id="exp4">
+                                <label class="form-check-label" for="exp4">Senior Level (6+ years)</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Advanced Skills -->
+                    <div class="question-card">
+                        <div class="card-body p-4">
+                            <h4 class="mb-3">3. Select your advanced skills</h4>
+                            <p class="text-muted">Click to select your skills</p>
+                            <div class="skills-container">
+                                <span class="skill-tag" onclick="toggleSkill(this)">Project Management</span>
+                                <span class="skill-tag" onclick="toggleSkill(this)">Team Leadership</span>
+                                <span class="skill-tag" onclick="toggleSkill(this)">Data Analysis</span>
+                                <span class="skill-tag" onclick="toggleSkill(this)">Machine Learning</span>
+                                <span class="skill-tag" onclick="toggleSkill(this)">Cloud Computing</span>
+                                <span class="skill-tag" onclick="toggleSkill(this)">DevOps</span>
+                                <span class="skill-tag" onclick="toggleSkill(this)">UI/UX Design</span>
+                                <span class="skill-tag" onclick="toggleSkill(this)">Digital Marketing</span>
+                                <span class="skill-tag" onclick="toggleSkill(this)">Financial Analysis</span>
+                                <span class="skill-tag" onclick="toggleSkill(this)">Research & Development</span>
+                            </div>
+                            <input type="hidden" name="technical_skills" id="technical_skills">
+                        </div>
+                    </div>
+
+                    <!-- Career Interests -->
+                    <div class="question-card">
+                        <div class="card-body p-4">
+                            <h4 class="mb-3">4. What are your career interests?</h4>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-check mb-3">
+                                        <input class="form-check-input" type="checkbox" name="interests" value="management" id="mgmt">
+                                        <label class="form-check-label" for="mgmt">Management & Leadership</label>
+                                    </div>
+                                    <div class="form-check mb-3">
+                                        <input class="form-check-input" type="checkbox" name="interests" value="technical_specialist" id="tech_spec">
+                                        <label class="form-check-label" for="tech_spec">Technical Specialist</label>
+                                    </div>
+                                    <div class="form-check mb-3">
+                                        <input class="form-check-input" type="checkbox" name="interests" value="consulting" id="consult">
+                                        <label class="form-check-label" for="consult">Consulting</label>
+                                    </div>
+                                    <div class="form-check mb-3">
+                                        <input class="form-check-input" type="checkbox" name="interests" value="entrepreneurship" id="entrepreneur">
+                                        <label class="form-check-label" for="entrepreneur">Entrepreneurship</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check mb-3">
+                                        <input class="form-check-input" type="checkbox" name="interests" value="research" id="research">
+                                        <label class="form-check-label" for="research">Research & Development</label>
+                                    </div>
+                                    <div class="form-check mb-3">
+                                        <input class="form-check-input" type="checkbox" name="interests" value="higher_studies" id="higher_studies">
+                                        <label class="form-check-label" for="higher_studies">Higher Studies (Masters/PhD)</label>
+                                    </div>
+                                    <div class="form-check mb-3">
+                                        <input class="form-check-input" type="checkbox" name="interests" value="government_jobs" id="govt">
+                                        <label class="form-check-label" for="govt">Government Jobs</label>
+                                    </div>
+                                    <div class="form-check mb-3">
+                                        <input class="form-check-input" type="checkbox" name="interests" value="corporate" id="corporate">
+                                        <label class="form-check-label" for="corporate">Corporate Career</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Career Goals -->
+                    <div class="question-card">
+                        <div class="card-body p-4">
+                            <h4 class="mb-3">5. What are your primary career goals?</h4>
+                            <select class="form-select" name="work_environment" required>
+                                <option value="">Select your primary goal</option>
+                                <option value="corporate_leadership">Corporate Leadership</option>
+                                <option value="technical_expert">Technical Expert</option>
+                                <option value="entrepreneurship">Start Business</option>
+                                <option value="higher_education">Higher Education</option>
+                                <option value="government_sector">Government Sector</option>
+                                <option value="research_scientist">Research Scientist</option>
+                                <option value="consulting">Consulting</option>
+                                <option value="freelance">Freelance/Remote Work</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="text-center mt-4">
+                        <button type="submit" class="btn btn-success btn-lg px-5">Get Career Recommendations</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function toggleSkill(element) {
+            element.classList.toggle('selected');
+            updateSkillsInput();
+        }
+
+        function updateSkillsInput() {
+            const selectedSkills = Array.from(document.querySelectorAll('.skill-tag.selected'))
+                .map(skill => skill.textContent);
+            document.getElementById('technical_skills').value = selectedSkills.join(',');
+        }
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

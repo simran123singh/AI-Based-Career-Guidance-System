@@ -1,0 +1,3043 @@
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
+from pymongo import MongoClient
+import bcrypt
+from datetime import datetime
+from bson import ObjectId
+import urllib.parse
+import os
+import nltk
+import re
+import random
+
+app = Flask(__name__)
+app.secret_key = 'career-guidance-secret-key-2024'
+
+# ==================== MONGODB CONFIGURATION ====================
+print("=" * 60)
+print("🚀 STARTING CAREERGUIDANCESYSTEM1")
+print("=" * 60)
+
+# Your exact MongoDB credentials from the connection string
+MONGODB_USERNAME = "careeradmin"
+MONGODB_PASSWORD = "careerpassword123"  # Replace this with your actual password
+CLUSTER_URL = "career-cluster.ot7vuob.mongodb.net"
+DATABASE_NAME = "career_guidance_db"
+
+print(f"🔑 Username: {MONGODB_USERNAME}")
+print(f"🔑 Password: {MONGODB_PASSWORD[:3]}***")  # Show only first 3 chars
+print(f"🌐 Cluster: {CLUSTER_URL}")
+print(f"📊 Database: {DATABASE_NAME}")
+
+try:
+    # Create connection string with URL encoding
+    encoded_password = urllib.parse.quote_plus(MONGODB_PASSWORD)
+    MONGODB_URI = f"mongodb+srv://{MONGODB_USERNAME}:{encoded_password}@{CLUSTER_URL}/{DATABASE_NAME}?retryWrites=true&w=majority&appName=career-cluster"
+    
+    print(f"🔗 Connecting to: mongodb+srv://{MONGODB_USERNAME}:********@{CLUSTER_URL}/{DATABASE_NAME}")
+    
+    # Connect to MongoDB
+    client = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=10000)
+    client.admin.command('ping')  # Test connection
+    
+    # Get database and collections
+    db = client[DATABASE_NAME]
+    users_collection = db.users
+    questionnaires_collection = db.questionnaires
+    
+    # Create indexes
+    users_collection.create_index("email", unique=True)
+    questionnaires_collection.create_index("user_id")
+    
+    print("✅ MongoDB Atlas connected successfully!")
+    print(f"✅ Database '{DATABASE_NAME}' is ready!")
+    print(f"✅ Collections: {db.list_collection_names()}")
+    
+    MONGODB_CONNECTED = True
+
+except Exception as e:
+    print(f"❌ MongoDB connection failed: {e}")
+    print("⚠️  Running in demo mode without database")
+    MONGODB_CONNECTED = False
+    users_collection = None
+    questionnaires_collection = None
+
+print("=" * 60)
+
+# ==================== AI CAREER AGENT ====================
+class CareerAgent:
+    def __init__(self):
+        self.career_knowledge = {
+            'software_development': {
+                'skills': ['Python', 'Java', 'JavaScript', 'C++', 'SQL', 'Git', 'Algorithms'],
+                'roles': ['Frontend Developer', 'Backend Developer', 'Full Stack Developer', 'Mobile Developer'],
+                'advice': 'Focus on building projects, learn data structures, and contribute to open source.'
+            },
+            'data_science': {
+                'skills': ['Python', 'R', 'SQL', 'Statistics', 'Machine Learning', 'Data Visualization'],
+                'roles': ['Data Analyst', 'Data Scientist', 'ML Engineer', 'Business Intelligence Analyst'],
+                'advice': 'Master statistics, work on Kaggle competitions, and build portfolio projects.'
+            },
+            'cybersecurity': {
+                'skills': ['Network Security', 'Ethical Hacking', 'Linux', 'Cryptography', 'Risk Assessment'],
+                'roles': ['Security Analyst', 'Penetration Tester', 'Security Engineer', 'CISO'],
+                'advice': 'Get certifications like CEH, CISSP, practice on platforms like HackTheBox.'
+            },
+            'business_analysis': {
+                'skills': ['Requirements Gathering', 'SQL', 'UML', 'Process Modeling', 'Stakeholder Management'],
+                'roles': ['Business Analyst', 'Product Manager', 'Systems Analyst', 'Consultant'],
+                'advice': 'Develop communication skills, learn Agile methodologies, understand business processes.'
+            }
+        }
+    
+    def analyze_query(self, user_query):
+        """Analyze user query and provide career guidance"""
+        query_lower = user_query.lower()
+        response = {
+            'answer': '',
+            'related_careers': [],
+            'suggested_skills': [],
+            'next_steps': []
+        }
+        
+        # Career path queries
+        if any(word in query_lower for word in ['career', 'job', 'role', 'position']):
+            if 'software' in query_lower or 'developer' in query_lower or 'programming' in query_lower:
+                career_info = self.career_knowledge['software_development']
+                response['answer'] = f"🚀 Software Development Career:\n\n{career_info['advice']}"
+                response['related_careers'] = career_info['roles']
+                response['suggested_skills'] = career_info['skills']
+                response['next_steps'] = [
+                    "Build 2-3 portfolio projects",
+                    "Learn Git and contribute to open source",
+                    "Practice coding interviews on LeetCode"
+                ]
+            
+            elif 'data' in query_lower or 'analyst' in query_lower or 'machine learning' in query_lower:
+                career_info = self.career_knowledge['data_science']
+                response['answer'] = f"📊 Data Science Career:\n\n{career_info['advice']}"
+                response['related_careers'] = career_info['roles']
+                response['suggested_skills'] = career_info['skills']
+                response['next_steps'] = [
+                    "Complete Kaggle competitions",
+                    "Learn SQL and database management",
+                    "Build data visualization projects"
+                ]
+            
+            elif 'cyber' in query_lower or 'security' in query_lower or 'hacking' in query_lower:
+                career_info = self.career_knowledge['cybersecurity']
+                response['answer'] = f"🔒 Cybersecurity Career:\n\n{career_info['advice']}"
+                response['related_careers'] = career_info['roles']
+                response['suggested_skills'] = career_info['skills']
+                response['next_steps'] = [
+                    "Practice on HackTheBox or TryHackMe",
+                    "Get Security+ certification",
+                    "Learn about network protocols"
+                ]
+            
+            elif 'business' in query_lower or 'analysis' in query_lower or 'product' in query_lower:
+                career_info = self.career_knowledge['business_analysis']
+                response['answer'] = f"📈 Business Analysis Career:\n\n{career_info['advice']}"
+                response['related_careers'] = career_info['roles']
+                response['suggested_skills'] = career_info['skills']
+                response['next_steps'] = [
+                    "Learn Agile methodologies",
+                    "Practice requirements documentation",
+                    "Develop stakeholder management skills"
+                ]
+        
+        # Skill development queries
+        elif any(word in query_lower for word in ['skill', 'learn', 'study', 'course']):
+            response['answer'] = "🎯 Based on current market trends, I recommend focusing on:\n\n• Python programming\n• Cloud computing (AWS/Azure)\n• Data analysis and visualization\n• Soft skills like communication\n\nWould you like specific guidance for any particular career field?"
+            response['next_steps'] = [
+                "Identify 2-3 key skills to master",
+                "Find online courses or certifications",
+                "Apply skills in practical projects"
+            ]
+        
+        # Salary and job market queries
+        elif any(word in query_lower for word in ['salary', 'pay', 'income', 'earn']):
+            response['answer'] = "💰 Current Salary Trends (US Market):\n\n• Software Developer: $85K - $140K\n• Data Scientist: $95K - $150K\n• Cybersecurity Analyst: $75K - $130K\n• Business Analyst: $70K - $110K\n\nSalaries vary by experience, location, and company size."
+        
+        # Default response for other queries
+        else:
+            response['answer'] = "🤖 I'm here to help with your career questions! You can ask me about:\n\n• Career paths in different fields\n• Skills to learn\n• Job market trends\n• Salary information\n• Interview preparation\n\nWhat specific career guidance are you looking for?"
+        
+        return response
+
+# Initialize career agent
+career_agent = CareerAgent()
+
+# ==================== RESUME PARSER ====================
+from werkzeug.utils import secure_filename
+
+class ResumeParser:
+    def __init__(self):
+        self.allowed_extensions = {'pdf', 'docx', 'txt'}
+        self.skill_keywords = {
+            'programming': ['python', 'java', 'javascript', 'c++', 'c#', 'php', 'ruby', 'go', 'rust', 'swift', 'kotlin'],
+            'web': ['html', 'css', 'react', 'angular', 'vue', 'node', 'django', 'flask', 'spring', 'laravel'],
+            'database': ['sql', 'mysql', 'postgresql', 'mongodb', 'redis', 'oracle'],
+            'cloud': ['aws', 'azure', 'google cloud', 'docker', 'kubernetes', 'devops', 'ci/cd'],
+            'data_science': ['machine learning', 'data analysis', 'statistics', 'pandas', 'numpy', 'tensorflow', 'pytorch'],
+            'tools': ['git', 'jenkins', 'jira', 'linux', 'windows', 'macos']
+        }
+    
+    def allowed_file(self, filename):
+        return '.' in filename and filename.rsplit('.', 1)[1].lower() in self.allowed_extensions
+    
+    def extract_skills_from_text(self, text):
+        """Extract skills from resume text"""
+        text_lower = text.lower()
+        found_skills = {}
+        
+        for category, skills in self.skill_keywords.items():
+            category_skills = []
+            for skill in skills:
+                if skill in text_lower:
+                    category_skills.append(skill.title())
+            if category_skills:
+                found_skills[category] = category_skills
+        
+        return found_skills
+    
+    def parse_resume(self, file_path):
+        """Parse resume and extract information"""
+        try:
+            # For demo purposes - in real app, you'd use proper PDF/DOCX parsing
+            # Here we'll simulate resume parsing with realistic data
+            simulated_skills = {
+                'programming': ['Python', 'Java', 'JavaScript'],
+                'web': ['HTML', 'CSS', 'React'],
+                'database': ['SQL', 'MySQL'],
+                'cloud': ['AWS'],
+                'tools': ['Git', 'Linux']
+            }
+            
+            return {
+                'skills': simulated_skills,
+                'experience_level': 'Intermediate (2-5 years)',
+                'education': 'Bachelor\'s in Computer Science',
+                'summary': 'Software developer with experience in web development, programming, and database management. Strong problem-solving skills and ability to work in team environments.'
+            }
+            
+        except Exception as e:
+            print(f"Error parsing resume: {e}")
+            return None
+    
+    def recommend_jobs_based_on_resume(self, resume_data):
+        """Recommend jobs based on resume analysis"""
+        skills = resume_data.get('skills', {})
+        all_skills = []
+        for category_skills in skills.values():
+            all_skills.extend(category_skills)
+        
+        recommendations = []
+        
+        # Software Development roles
+        if any(skill in ['Python', 'Java', 'JavaScript'] for skill in all_skills):
+            recommendations.append({
+                'title': '💻 Software Developer',
+                'match': 'High',
+                'reason': 'Strong programming skills match software development requirements',
+                'salary': '$85,000 - $120,000',
+                'skills_match': ['Python', 'Java', 'Problem Solving']
+            })
+        
+        # Web Development roles
+        if any(skill in ['React', 'HTML', 'CSS', 'JavaScript'] for skill in all_skills):
+            recommendations.append({
+                'title': '🌐 Full Stack Developer',
+                'match': 'High', 
+                'reason': 'Web development skills align with full stack requirements',
+                'salary': '$75,000 - $110,000',
+                'skills_match': ['React', 'JavaScript', 'HTML/CSS']
+            })
+        
+        # Data roles
+        if any(skill in ['Python', 'SQL'] for skill in all_skills):
+            recommendations.append({
+                'title': '📊 Data Analyst',
+                'match': 'Medium',
+                'reason': 'Programming and database skills suitable for data analysis',
+                'salary': '$65,000 - $95,000',
+                'skills_match': ['Python', 'SQL', 'Statistics']
+            })
+        
+        # Add more role recommendations based on skills
+        if len(recommendations) < 3:
+            recommendations.extend([
+                {
+                    'title': '🔒 Cybersecurity Analyst',
+                    'match': 'Medium',
+                    'reason': 'Technical background can transition to security roles',
+                    'salary': '$75,000 - $110,000',
+                    'skills_match': ['Security', 'Networking', 'Linux']
+                },
+                {
+                    'title': '📈 Business Analyst',
+                    'match': 'Medium', 
+                    'reason': 'Technical skills valuable for business analysis roles',
+                    'salary': '$70,000 - $100,000',
+                    'skills_match': ['Communication', 'Analysis', 'SQL']
+                }
+            ])
+        
+        return recommendations[:5]
+
+# Initialize resume parser
+resume_parser = ResumeParser()
+
+# Configure upload folder
+UPLOAD_FOLDER = 'uploads'
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+
+# Demo storage (fallback)
+demo_users = {}
+demo_questionnaires = []
+
+# ==================== ROUTES ====================
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/login', methods=['POST'])
+def login():
+    email = request.form['email']
+    password = request.form['password']
+    
+    if MONGODB_CONNECTED:
+        try:
+            user = users_collection.find_one({'email': email})
+            if user and bcrypt.checkpw(password.encode('utf-8'), user['password']):
+                session['user_id'] = str(user['_id'])
+                session['user_email'] = user['email']
+                session['user_name'] = user['name']
+                session['demo_mode'] = False
+                
+                # Update last login
+                users_collection.update_one(
+                    {'_id': user['_id']},
+                    {'$set': {'last_login': datetime.now()}}
+                )
+                
+                flash('Login successful!', 'success')
+                return redirect(url_for('dashboard'))
+            else:
+                flash('Invalid email or password!', 'error')
+                return redirect(url_for('index'))
+                
+        except Exception as e:
+            print(f"Login error: {e}")
+            flash('Login error. Please try again.', 'error')
+            return redirect(url_for('index'))
+    else:
+        # Demo mode
+        if email not in demo_users:
+            # Create new demo user
+            demo_users[email] = {
+                'name': 'Demo User',
+                'email': email,
+                'password': bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()),
+                'created_at': datetime.now()
+            }
+        
+        session['user_id'] = email
+        session['user_email'] = email
+        session['user_name'] = demo_users[email]['name']
+        session['demo_mode'] = True
+        flash('Login successful! (Demo Mode)', 'success')
+        return redirect(url_for('dashboard'))
+
+@app.route('/signup', methods=['GET', 'POST'])
+def signup():
+    if request.method == 'POST':
+        name = request.form['name']
+        email = request.form['email']
+        password = request.form['password']
+        
+        if MONGODB_CONNECTED:
+            try:
+                # Check if user exists
+                if users_collection.find_one({'email': email}):
+                    flash('Email already exists! Please login.', 'error')
+                    return redirect(url_for('index'))
+                
+                # Create new user
+                hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+                user_data = {
+                    'name': name,
+                    'email': email,
+                    'password': hashed_password,
+                    'created_at': datetime.now(),
+                    'last_login': None,
+                    'education_level': None
+                }
+                
+                result = users_collection.insert_one(user_data)
+                print(f"✅ New user created in MongoDB: {email}")
+                flash('Account created successfully! Please login.', 'success')
+                return redirect(url_for('index'))
+                
+            except Exception as e:
+                print(f"Signup error: {e}")
+                flash('Error creating account. Please try again.', 'error')
+                return redirect(url_for('index'))
+        else:
+            # Demo mode
+            if email in demo_users:
+                flash('Email already exists! Please login.', 'error')
+                return redirect(url_for('index'))
+            
+            demo_users[email] = {
+                'name': name,
+                'email': email,
+                'password': bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()),
+                'created_at': datetime.now()
+            }
+            flash('Account created successfully! Please login.', 'success')
+            return redirect(url_for('index'))
+    
+    return render_template('signup.html')
+
+@app.route('/admin-login', methods=['GET', 'POST'])
+def admin_login():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        
+        if username == 'admin' and password == 'admin123':
+            session['admin_logged_in'] = True
+            flash('Admin login successful!', 'success')
+            return redirect(url_for('admin_dashboard'))
+        else:
+            flash('Invalid admin credentials!', 'error')
+    
+    return render_template('admin_login.html')
+
+@app.route('/dashboard')
+def dashboard():
+    if 'user_id' not in session:
+        return redirect(url_for('index'))
+    return render_template('dashboard.html')
+
+@app.route('/questionnaire/<education_level>')
+def questionnaire(education_level):
+    if 'user_id' not in session:
+        return redirect(url_for('index'))
+    
+    if education_level in ['undergraduate', 'graduate', 'postgraduate']:
+        session['education_level'] = education_level
+        return render_template(f'questionnaire_{education_level}.html')
+    else:
+        flash('Invalid education level!', 'error')
+        return redirect(url_for('dashboard'))
+
+@app.route('/submit-questionnaire', methods=['POST'])
+def submit_questionnaire():
+    if 'user_id' not in session:
+        return redirect(url_for('index'))
+    
+    try:
+        # Collect all form data
+        education_level = request.form['education_level']
+        field_of_study = request.form['field_of_study']
+        technical_skills = request.form.get('technical_skills', '')
+        work_environment = request.form['work_environment']
+        experience = request.form['experience']
+        interests = request.form.getlist('interests')
+        
+        print(f"📝 Received questionnaire data:")
+        print(f"   Education: {education_level}")
+        print(f"   Field: {field_of_study}")
+        print(f"   Skills: {technical_skills}")
+        print(f"   Interests: {interests}")
+        print(f"   Work Environment: {work_environment}")
+        print(f"   Experience: {experience}")
+        
+        questionnaire_data = {
+            'user_id': session['user_id'],
+            'education_level': education_level,
+            'field_of_study': field_of_study,
+            'technical_skills': technical_skills,
+            'interests': interests,
+            'work_environment': work_environment,
+            'experience': experience,
+            'submitted_at': datetime.now()
+        }
+        
+        # Store data
+        if MONGODB_CONNECTED:
+            try:
+                result = questionnaires_collection.insert_one(questionnaire_data)
+                print(f"✅ Questionnaire saved to MongoDB with ID: {result.inserted_id}")
+            except Exception as e:
+                print(f"Error saving questionnaire: {e}")
+        else:
+            demo_questionnaires.append(questionnaire_data)
+            print("✅ Questionnaire saved to demo storage")
+        
+        session['questionnaire_data'] = questionnaire_data
+        flash('Questionnaire submitted successfully! Generating recommendations...', 'success')
+        return redirect(url_for('recommendations'))
+    
+    except Exception as e:
+        print(f"❌ Error in submit_questionnaire: {e}")
+        flash('Error submitting questionnaire. Please try again.', 'error')
+        return redirect(url_for('dashboard'))
+
+@app.route('/recommendations')
+def recommendations():
+    if 'user_id' not in session:
+        return redirect(url_for('index'))
+    
+    # Generate recommendations based on questionnaire data
+    recommendations_data = generate_recommendations()
+    
+    print(f"🎯 Generated {len(recommendations_data)} recommendations")
+    return render_template('recommendations.html', recommendations=recommendations_data)
+
+def generate_recommendations():
+    """Generate career recommendations based on questionnaire data"""
+    if 'questionnaire_data' not in session:
+        print("❌ No questionnaire data found in session")
+        return get_default_recommendations()
+    
+    data = session['questionnaire_data']
+    education_level = data.get('education_level', 'unknown')
+    field_of_study = data.get('field_of_study', '')
+    technical_skills = data.get('technical_skills', '')
+    interests = data.get('interests', [])
+    work_environment = data.get('work_environment', '')
+    experience = data.get('experience', '')
+    
+    print(f"🔍 Processing recommendations for:")
+    print(f"   Education Level: {education_level}")
+    print(f"   Field of Study: {field_of_study}")
+    print(f"   Technical Skills: {technical_skills}")
+    print(f"   Interests: {interests}")
+    print(f"   Work Environment: {work_environment}")
+    print(f"   Experience: {experience}")
+    
+    recommendations = []
+    
+    # ==================== UNDERGRADUATE RECOMMENDATIONS ====================
+    if education_level == 'undergraduate':
+        print("🎓 Generating UNDERGRADUATE recommendations")
+        
+        # Computer Science/IT related
+        if 'computer_science' in field_of_study or 'engineering' in field_of_study:
+            if 'Python' in technical_skills or 'Java' in technical_skills or 'Programming' in technical_skills:
+                recommendations.append({
+                    'title': '💻 Software Developer',
+                    'description': 'Build applications and systems using programming languages',
+                    'salary': '$85,000 - $120,000',
+                    'skills': 'Python, Java, Problem Solving, Algorithms',
+                    'match_score': 94,
+                    'type': 'tech'
+                })
+            
+            if 'Web Development' in technical_skills or 'HTML' in technical_skills or 'JavaScript' in technical_skills:
+                recommendations.append({
+                    'title': '🌐 Full Stack Developer',
+                    'description': 'Develop both front-end and back-end of web applications',
+                    'salary': '$75,000 - $110,000',
+                    'skills': 'HTML, CSS, JavaScript, React, Node.js',
+                    'match_score': 89,
+                    'type': 'tech'
+                })
+            
+            if 'Data Analysis' in technical_skills or 'data_science' in interests:
+                recommendations.append({
+                    'title': '📊 Data Analyst',
+                    'description': 'Analyze data to help businesses make informed decisions',
+                    'salary': '$65,000 - $95,000',
+                    'skills': 'SQL, Excel, Statistics, Python, Data Visualization',
+                    'match_score': 88,
+                    'type': 'tech'
+                })
+        
+        # Business related
+        if 'business' in field_of_study or 'business_analysis' in interests:
+            recommendations.append({
+                'title': '📈 Business Analyst',
+                'description': 'Bridge between IT and business operations',
+                'salary': '$70,000 - $100,000',
+                'skills': 'Communication, Analysis, SQL, Requirements Gathering',
+                'match_score': 85,
+                'type': 'non-tech'
+            })
+            
+            if 'Digital Marketing' in technical_skills:
+                recommendations.append({
+                    'title': '📱 Digital Marketing Specialist',
+                    'description': 'Promote products/services through digital channels',
+                    'salary': '$55,000 - $85,000',
+                    'skills': 'SEO, Social Media, Content Marketing, Analytics',
+                    'match_score': 82,
+                    'type': 'non-tech'
+                })
+        
+        # Cybersecurity
+        if 'cybersecurity' in interests or 'Security' in technical_skills:
+            recommendations.append({
+                'title': '🔒 Cybersecurity Analyst',
+                'description': 'Protect systems and networks from cyber threats',
+                'salary': '$75,000 - $110,000',
+                'skills': 'Security, Networking, Linux, Ethical Hacking',
+                'match_score': 87,
+                'type': 'tech'
+            })
+        
+        # Science & Research
+        if 'science' in field_of_study or 'research' in interests:
+            recommendations.append({
+                'title': '🔬 Research Assistant',
+                'description': 'Support scientific research in academic or industrial settings',
+                'salary': '$45,000 - $65,000',
+                'skills': 'Research Methods, Data Collection, Analysis',
+                'match_score': 83,
+                'type': 'research'
+            })
+            
+        # Government jobs
+        if 'government' in work_environment:
+            recommendations.append({
+                'title': '🏛️ Government IT Specialist',
+                'description': 'Work in public sector IT departments with job security',
+                'salary': '$60,000 - $90,000',
+                'skills': 'General IT, Documentation, Compliance, Public Service',
+                'match_score': 80,
+                'type': 'government'
+            })
+    
+    # ==================== GRADUATE RECOMMENDATIONS ====================
+    elif education_level == 'graduate':
+        print("🎓 Generating GRADUATE recommendations")
+        
+        # Management and Leadership roles
+        if 'management' in interests or 'Team Leadership' in technical_skills:
+            recommendations.append({
+                'title': '👨‍💼 Project Manager',
+                'description': 'Lead projects and coordinate teams to achieve business goals',
+                'salary': '$90,000 - $130,000',
+                'skills': 'Leadership, Planning, Communication, Risk Management',
+                'match_score': 91,
+                'type': 'management'
+            })
+            
+            if 'business_mba' in field_of_study:
+                recommendations.append({
+                    'title': '💼 Product Manager',
+                    'description': 'Define product vision and work with cross-functional teams',
+                    'salary': '$100,000 - $150,000',
+                    'skills': 'Strategy, Market Research, User Experience, Roadmapping',
+                    'match_score': 89,
+                    'type': 'management'
+                })
+        
+        # Technical Specialist roles
+        if 'technical_specialist' in interests or 'Cloud Computing' in technical_skills:
+            recommendations.append({
+                'title': '☁️ Cloud Solutions Architect',
+                'description': 'Design and implement cloud infrastructure solutions',
+                'salary': '$120,000 - $160,000',
+                'skills': 'AWS, Azure, GCP, Infrastructure Design, Security',
+                'match_score': 93,
+                'type': 'tech'
+            })
+            
+            if 'DevOps' in technical_skills:
+                recommendations.append({
+                    'title': '⚙️ DevOps Engineer',
+                    'description': 'Streamline development and operations processes',
+                    'salary': '$110,000 - $150,000',
+                    'skills': 'CI/CD, Docker, Kubernetes, Automation, Monitoring',
+                    'match_score': 90,
+                    'type': 'tech'
+                })
+        
+        # Data & Analytics roles
+        if 'Data Analysis' in technical_skills or 'data_science' in interests:
+            recommendations.append({
+                'title': '📈 Senior Data Analyst',
+                'description': 'Lead data analysis projects and provide strategic insights',
+                'salary': '$85,000 - $120,000',
+                'skills': 'SQL, Python, Statistics, Business Intelligence, Visualization',
+                'match_score': 88,
+                'type': 'tech'
+            })
+            
+            if 'Machine Learning' in technical_skills:
+                recommendations.append({
+                    'title': '🤖 Machine Learning Engineer',
+                    'description': 'Build and deploy machine learning models and AI systems',
+                    'salary': '$110,000 - $150,000',
+                    'skills': 'Python, TensorFlow, PyTorch, Statistics, ML Algorithms',
+                    'match_score': 92,
+                    'type': 'tech'
+                })
+        
+        # Consulting roles
+        if 'consulting' in interests:
+            recommendations.append({
+                'title': '💡 IT Consultant',
+                'description': 'Advise businesses on technology strategy and implementation',
+                'salary': '$85,000 - $120,000',
+                'skills': 'Communication, Problem Solving, Business Acumen, Presentation',
+                'match_score': 86,
+                'type': 'consulting'
+            })
+            
+        # Entrepreneurship
+        if 'entrepreneurship' in interests:
+            recommendations.append({
+                'title': '🚀 Startup Founder',
+                'description': 'Build your own business and bring innovative ideas to market',
+                'salary': 'Varies (Equity Based)',
+                'skills': 'Innovation, Risk-taking, Business Development, Fundraising',
+                'match_score': 88,
+                'type': 'entrepreneurship'
+            })
+    
+    # ==================== POSTGRADUATE RECOMMENDATIONS ====================
+    elif education_level == 'postgraduate':
+        print("🎓 Generating POSTGRADUATE recommendations")
+        
+        # Research & Academia
+        if 'academia' in interests or 'research' in interests:
+            recommendations.append({
+                'title': '🎓 University Professor',
+                'description': 'Teach and conduct research in academic institutions',
+                'salary': '$80,000 - $120,000',
+                'skills': 'Teaching, Research, Publication, Mentoring, Grant Writing',
+                'match_score': 88,
+                'type': 'academia'
+            })
+            
+            recommendations.append({
+                'title': '🔬 Research Scientist',
+                'description': 'Conduct advanced research in industrial or academic settings',
+                'salary': '$90,000 - $140,000',
+                'skills': 'Research Methodology, Analysis, Publication, Experiment Design',
+                'match_score': 90,
+                'type': 'research'
+            })
+        
+        # Advanced technical roles
+        if 'Machine Learning' in technical_skills or 'Deep Learning' in technical_skills:
+            recommendations.append({
+                'title': '🧠 AI Research Scientist',
+                'description': 'Conduct cutting-edge research in artificial intelligence',
+                'salary': '$150,000 - $250,000',
+                'skills': 'Deep Learning, Research, Python, TensorFlow, PyTorch',
+                'match_score': 95,
+                'type': 'research'
+            })
+        
+        # Leadership roles
+        recommendations.append({
+            'title': '👨‍💼 Senior Technology Manager',
+            'description': 'Lead technology strategy for large organizations',
+            'salary': '$130,000 - $200,000',
+            'skills': 'Leadership, Strategy, Budget Management, Team Building',
+            'match_score': 90,
+            'type': 'management'
+        })
+        
+        # Specialized consulting
+        recommendations.append({
+            'title': '💎 Senior Consultant',
+            'description': 'Provide expert advice to organizations on complex challenges',
+            'salary': '$120,000 - $180,000',
+            'skills': 'Expertise, Communication, Problem Solving, Industry Knowledge',
+            'match_score': 87,
+            'type': 'consulting'
+        })
+        
+        # Government research
+        if 'government' in work_environment:
+            recommendations.append({
+                'title': '🏛️ Policy Research Analyst',
+                'description': 'Conduct research to inform government policies and decisions',
+                'salary': '$70,000 - $110,000',
+                'skills': 'Research, Analysis, Policy Knowledge, Report Writing',
+                'match_score': 85,
+                'type': 'government'
+            })
+    
+    # Add default recommendations if not enough personalized ones
+    if len(recommendations) < 2:
+        print(f"⚠️ Only {len(recommendations)} personalized recommendations, adding defaults")
+        default_recs = get_default_recommendations()
+        for rec in default_recs:
+            if not any(r['title'] == rec['title'] for r in recommendations):
+                recommendations.append(rec)
+    
+    # Sort by match score and return top 5
+    recommendations.sort(key=lambda x: x['match_score'], reverse=True)
+    print(f"✅ Final recommendations: {[r['title'] for r in recommendations]}")
+    return recommendations[:5]
+
+def get_default_recommendations():
+    """Return default recommendations for all education levels"""
+    return [
+        {
+            'title': '💻 Software Developer',
+            'description': 'Build applications and systems using programming languages',
+            'salary': '$85,000 - $120,000',
+            'skills': 'Python, Java, Problem Solving, Algorithms',
+            'match_score': 85,
+            'type': 'tech'
+        },
+        {
+            'title': '📊 Data Analyst',
+            'description': 'Analyze data to help businesses make decisions',
+            'salary': '$65,000 - $95,000',
+            'skills': 'SQL, Excel, Statistics, Data Visualization',
+            'match_score': 82,
+            'type': 'tech'
+        },
+        {
+            'title': '🔒 Cybersecurity Analyst',
+            'description': 'Protect systems and networks from cyber threats',
+            'salary': '$75,000 - $110,000',
+            'skills': 'Security, Networking, Linux, Ethical Hacking',
+            'match_score': 80,
+            'type': 'tech'
+        },
+        {
+            'title': '📈 Business Analyst',
+            'description': 'Bridge between IT and business operations',
+            'salary': '$70,000 - $100,000',
+            'skills': 'Communication, Analysis, SQL, Requirements Gathering',
+            'match_score': 78,
+            'type': 'non-tech'
+        }
+    ]
+
+# ==================== NEW AI AGENT & RESUME ROUTES ====================
+
+@app.route('/career-agent')
+def career_agent():
+    if 'user_id' not in session:
+        return redirect(url_for('index'))
+    return render_template('career_agent.html')
+
+@app.route('/ask-agent', methods=['POST'])
+def ask_agent():
+    if 'user_id' not in session:
+        return redirect(url_for('index'))
+    
+    user_question = request.form['question']
+    print(f"🤖 AI Agent received question: {user_question}")
+    
+    response = career_agent.analyze_query(user_question)
+    
+    return jsonify({
+        'answer': response['answer'],
+        'related_careers': response['related_careers'],
+        'suggested_skills': response['suggested_skills'],
+        'next_steps': response['next_steps']
+    })
+
+@app.route('/resume-upload')
+def resume_upload():
+    if 'user_id' not in session:
+        return redirect(url_for('index'))
+    return render_template('resume_upload.html')
+
+@app.route('/upload-resume', methods=['POST'])
+def upload_resume():
+    if 'user_id' not in session:
+        return redirect(url_for('index'))
+    
+    if 'resume' not in request.files:
+        flash('No file selected', 'error')
+        return redirect(url_for('resume_upload'))
+    
+    file = request.files['resume']
+    if file.filename == '':
+        flash('No file selected', 'error')
+        return redirect(url_for('resume_upload'))
+    
+    if file and resume_parser.allowed_file(file.filename):
+        filename = secure_filename(file.filename)
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(file_path)
+        
+        print(f"📄 Resume uploaded: {filename}")
+        
+        # Parse resume
+        resume_data = resume_parser.parse_resume(file_path)
+        
+        if resume_data:
+            # Get job recommendations based on resume
+            job_recommendations = resume_parser.recommend_jobs_based_on_resume(resume_data)
+            
+            # Store in session
+            session['resume_data'] = resume_data
+            session['resume_recommendations'] = job_recommendations
+            
+            flash('Resume analyzed successfully!', 'success')
+            return redirect(url_for('resume_results'))
+        else:
+            flash('Error analyzing resume. Please try again.', 'error')
+            return redirect(url_for('resume_upload'))
+    
+    else:
+        flash('Invalid file type. Please upload PDF, DOCX, or TXT.', 'error')
+        return redirect(url_for('resume_upload'))
+
+@app.route('/resume-results')
+def resume_results():
+    if 'user_id' not in session:
+        return redirect(url_for('index'))
+    
+    resume_data = session.get('resume_data', {})
+    recommendations = session.get('resume_recommendations', [])
+    
+    return render_template('resume_results.html', 
+                         resume_data=resume_data, 
+                         recommendations=recommendations)
+
+@app.route('/admin-dashboard')
+def admin_dashboard():
+    if not session.get('admin_logged_in'):
+        return redirect(url_for('admin_login'))
+    
+    # Get statistics
+    stats = {
+        'total_users': 0,
+        'total_questionnaires': 0,
+        'education_distribution': {'undergraduate': 0, 'graduate': 0, 'postgraduate': 0}
+    }
+    
+    if MONGODB_CONNECTED:
+        try:
+            stats['total_users'] = users_collection.count_documents({})
+            stats['total_questionnaires'] = questionnaires_collection.count_documents({})
+            
+            # Get education distribution
+            pipeline = [
+                {'$group': {'_id': '$education_level', 'count': {'$sum': 1}}}
+            ]
+            edu_stats = questionnaires_collection.aggregate(pipeline)
+            for item in edu_stats:
+                if item['_id'] in stats['education_distribution']:
+                    stats['education_distribution'][item['_id']] = item['count']
+                    
+        except Exception as e:
+            print(f"Error getting stats: {e}")
+    else:
+        # Demo stats
+        stats['total_users'] = len(demo_users)
+        stats['total_questionnaires'] = len(demo_questionnaires)
+        stats['education_distribution'] = {'undergraduate': 65, 'graduate': 25, 'postgraduate': 10}
+    
+    return render_template('admin_dashboard.html', stats=stats)
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    flash('You have been logged out successfully!', 'info')
+    return redirect(url_for('index'))
+
+if __name__ == '__main__':
+    app.run(debug=True, host='127.0.0.1', port=5000)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
+from pymongo import MongoClient
+import bcrypt
+from datetime import datetime
+from bson import ObjectId
+import urllib.parse
+import os
+import nltk
+import re
+import random
+
+app = Flask(__name__)
+app.secret_key = 'career-guidance-secret-key-2024'
+
+# ==================== MONGODB CONFIGURATION ====================
+print("=" * 60)
+print("🚀 STARTING CAREERGUIDANCESYSTEM1")
+print("=" * 60)
+
+# Your exact MongoDB credentials from the connection string
+MONGODB_USERNAME = "careeradmin"
+MONGODB_PASSWORD = "careerpassword123"  # Replace this with your actual password
+CLUSTER_URL = "career-cluster.ot7vuob.mongodb.net"
+DATABASE_NAME = "career_guidance_db"
+
+print(f"🔑 Username: {MONGODB_USERNAME}")
+print(f"🔑 Password: {MONGODB_PASSWORD[:3]}***")  # Show only first 3 chars
+print(f"🌐 Cluster: {CLUSTER_URL}")
+print(f"📊 Database: {DATABASE_NAME}")
+
+try:
+    # Create connection string with URL encoding
+    encoded_password = urllib.parse.quote_plus(MONGODB_PASSWORD)
+    MONGODB_URI = f"mongodb+srv://{MONGODB_USERNAME}:{encoded_password}@{CLUSTER_URL}/{DATABASE_NAME}?retryWrites=true&w=majority&appName=career-cluster"
+    
+    print(f"🔗 Connecting to: mongodb+srv://{MONGODB_USERNAME}:********@{CLUSTER_URL}/{DATABASE_NAME}")
+    
+    # Connect to MongoDB
+    client = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=10000)
+    client.admin.command('ping')  # Test connection
+    
+    # Get database and collections
+    db = client[DATABASE_NAME]
+    users_collection = db.users
+    questionnaires_collection = db.questionnaires
+    
+   # Create indexes
+    users_collection.create_index("email", unique=True)
+    questionnaires_collection.create_index("user_id")
+    
+    print("✅ MongoDB Atlas connected successfully!")
+    print(f"✅ Database '{DATABASE_NAME}' is ready!")
+    print(f"✅ Collections: {db.list_collection_names()}")
+    
+    MONGODB_CONNECTED = True
+
+except Exception as e:
+    print(f"❌ MongoDB connection failed: {e}")
+    print("⚠️  Running in demo mode without database")
+    MONGODB_CONNECTED = False
+    users_collection = None
+    questionnaires_collection = None
+
+print("=" * 60)
+
+# ==================== AI CAREER AGENT ====================
+class CareerAgent:
+    def __init__(self):
+        self.career_knowledge = {
+            'software_development': {
+                'skills': ['Python', 'Java', 'JavaScript', 'C++', 'SQL', 'Git', 'Algorithms'],
+                'roles': ['Frontend Developer', 'Backend Developer', 'Full Stack Developer', 'Mobile Developer'],
+                'advice': 'Focus on building projects, learn data structures, and contribute to open source.'
+            },
+            'data_science': {
+                'skills': ['Python', 'R', 'SQL', 'Statistics', 'Machine Learning', 'Data Visualization'],
+                'roles': ['Data Analyst', 'Data Scientist', 'ML Engineer', 'Business Intelligence Analyst'],
+                'advice': 'Master statistics, work on Kaggle competitions, and build portfolio projects.'
+            },
+            'cybersecurity': {
+                'skills': ['Network Security', 'Ethical Hacking', 'Linux', 'Cryptography', 'Risk Assessment'],
+                'roles': ['Security Analyst', 'Penetration Tester', 'Security Engineer', 'CISO'],
+                'advice': 'Get certifications like CEH, CISSP, practice on platforms like HackTheBox.'
+            },
+            'business_analysis': {
+                'skills': ['Requirements Gathering', 'SQL', 'UML', 'Process Modeling', 'Stakeholder Management'],
+                'roles': ['Business Analyst', 'Product Manager', 'Systems Analyst', 'Consultant'],
+                'advice': 'Develop communication skills, learn Agile methodologies, understand business processes.'
+            }
+        }
+    
+    def analyze_query(self, user_query):
+        """Analyze user query and provide career guidance"""
+        query_lower = user_query.lower()
+        response = {
+            'answer': '',
+            'related_careers': [],
+            'suggested_skills': [],
+            'next_steps': []
+        }
+        
+        # Career path queries
+        if any(word in query_lower for word in ['career', 'job', 'role', 'position']):
+            if 'software' in query_lower or 'developer' in query_lower or 'programming' in query_lower:
+                career_info = self.career_knowledge['software_development']
+                response['answer'] = f"🚀 Software Development Career:\n\n{career_info['advice']}"
+                response['related_careers'] = career_info['roles']
+                response['suggested_skills'] = career_info['skills']
+                response['next_steps'] = [
+                    "Build 2-3 portfolio projects",
+                    "Learn Git and contribute to open source",
+                    "Practice coding interviews on LeetCode"
+                ]
+            
+            elif 'data' in query_lower or 'analyst' in query_lower or 'machine learning' in query_lower:
+                career_info = self.career_knowledge['data_science']
+                response['answer'] = f"📊 Data Science Career:\n\n{career_info['advice']}"
+                response['related_careers'] = career_info['roles']
+                response['suggested_skills'] = career_info['skills']
+                response['next_steps'] = [
+                    "Complete Kaggle competitions",
+                    "Learn SQL and database management",
+                    "Build data visualization projects"
+                ]
+            
+            elif 'cyber' in query_lower or 'security' in query_lower or 'hacking' in query_lower:
+                career_info = self.career_knowledge['cybersecurity']
+                response['answer'] = f"🔒 Cybersecurity Career:\n\n{career_info['advice']}"
+                response['related_careers'] = career_info['roles']
+                response['suggested_skills'] = career_info['skills']
+                response['next_steps'] = [
+                    "Practice on HackTheBox or TryHackMe",
+                    "Get Security+ certification",
+                    "Learn about network protocols"
+                ]
+            
+            elif 'business' in query_lower or 'analysis' in query_lower or 'product' in query_lower:
+                career_info = self.career_knowledge['business_analysis']
+                response['answer'] = f"📈 Business Analysis Career:\n\n{career_info['advice']}"
+                response['related_careers'] = career_info['roles']
+                response['suggested_skills'] = career_info['skills']
+                response['next_steps'] = [
+                    "Learn Agile methodologies",
+                    "Practice requirements documentation",
+                    "Develop stakeholder management skills"
+                ]
+        
+        # Skill development queries
+        elif any(word in query_lower for word in ['skill', 'learn', 'study', 'course']):
+            response['answer'] = "🎯 Based on current market trends, I recommend focusing on:\n\n• Python programming\n• Cloud computing (AWS/Azure)\n• Data analysis and visualization\n• Soft skills like communication\n\nWould you like specific guidance for any particular career field?"
+            response['next_steps'] = [
+                "Identify 2-3 key skills to master",
+                "Find online courses or certifications",
+                "Apply skills in practical projects"
+            ]
+        
+        # Salary and job market queries
+        elif any(word in query_lower for word in ['salary', 'pay', 'income', 'earn']):
+            response['answer'] = "💰 Current Salary Trends (US Market):\n\n• Software Developer: $85K - $140K\n• Data Scientist: $95K - $150K\n• Cybersecurity Analyst: $75K - $130K\n• Business Analyst: $70K - $110K\n\nSalaries vary by experience, location, and company size."
+        
+        # Default response for other queries
+        else:
+            response['answer'] = "🤖 I'm here to help with your career questions! You can ask me about:\n\n• Career paths in different fields\n• Skills to learn\n• Job market trends\n• Salary information\n• Interview preparation\n\nWhat specific career guidance are you looking for?"
+        
+        return response
+
+# Initialize career agent
+career_agent = CareerAgent()
+
+# ==================== RESUME PARSER ====================
+from werkzeug.utils import secure_filename
+
+class ResumeParser:
+    def __init__(self):
+        self.allowed_extensions = {'pdf', 'docx', 'txt'}
+        self.skill_keywords = {
+            'programming': ['python', 'java', 'javascript', 'c++', 'c#', 'php', 'ruby', 'go', 'rust', 'swift', 'kotlin'],
+            'web': ['html', 'css', 'react', 'angular', 'vue', 'node', 'django', 'flask', 'spring', 'laravel'],
+            'database': ['sql', 'mysql', 'postgresql', 'mongodb', 'redis', 'oracle'],
+            'cloud': ['aws', 'azure', 'google cloud', 'docker', 'kubernetes', 'devops', 'ci/cd'],
+            'data_science': ['machine learning', 'data analysis', 'statistics', 'pandas', 'numpy', 'tensorflow', 'pytorch'],
+            'tools': ['git', 'jenkins', 'jira', 'linux', 'windows', 'macos']
+        }
+    
+    def allowed_file(self, filename):
+        return '.' in filename and filename.rsplit('.', 1)[1].lower() in self.allowed_extensions
+    
+    def extract_skills_from_text(self, text):
+        """Extract skills from resume text"""
+        text_lower = text.lower()
+        found_skills = {}
+        
+        for category, skills in self.skill_keywords.items():
+            category_skills = []
+            for skill in skills:
+                if skill in text_lower:
+                    category_skills.append(skill.title())
+            if category_skills:
+                found_skills[category] = category_skills
+        
+        return found_skills
+    
+    def parse_resume(self, file_path):
+        """Parse resume and extract information"""
+        try:
+            # For demo purposes - in real app, you'd use proper PDF/DOCX parsing
+            # Here we'll simulate resume parsing with realistic data
+            simulated_skills = {
+                'programming': ['Python', 'Java', 'JavaScript'],
+                'web': ['HTML', 'CSS', 'React'],
+                'database': ['SQL', 'MySQL'],
+                'cloud': ['AWS'],
+                'tools': ['Git', 'Linux']
+            }
+            
+            return {
+                'skills': simulated_skills,
+                'experience_level': 'Intermediate (2-5 years)',
+                'education': 'Bachelor\'s in Computer Science',
+                'summary': 'Software developer with experience in web development, programming, and database management. Strong problem-solving skills and ability to work in team environments.'
+            }
+            
+        except Exception as e:
+            print(f"Error parsing resume: {e}")
+            return None
+    
+    def recommend_jobs_based_on_resume(self, resume_data):
+        """Recommend jobs based on resume analysis"""
+        skills = resume_data.get('skills', {})
+        all_skills = []
+        for category_skills in skills.values():
+            all_skills.extend(category_skills)
+        
+        recommendations = []
+        
+        # Software Development roles
+        if any(skill in ['Python', 'Java', 'JavaScript'] for skill in all_skills):
+            recommendations.append({
+                'title': '💻 Software Developer',
+                'match': 'High',
+                'reason': 'Strong programming skills match software development requirements',
+                'salary': '$85,000 - $120,000',
+                'skills_match': ['Python', 'Java', 'Problem Solving']
+            })
+        
+        # Web Development roles
+        if any(skill in ['React', 'HTML', 'CSS', 'JavaScript'] for skill in all_skills):
+            recommendations.append({
+                'title': '🌐 Full Stack Developer',
+                'match': 'High', 
+                'reason': 'Web development skills align with full stack requirements',
+                'salary': '$75,000 - $110,000',
+                'skills_match': ['React', 'JavaScript', 'HTML/CSS']
+            })
+        
+        # Data roles
+        if any(skill in ['Python', 'SQL'] for skill in all_skills):
+            recommendations.append({
+                'title': '📊 Data Analyst',
+                'match': 'Medium',
+                'reason': 'Programming and database skills suitable for data analysis',
+                'salary': '$65,000 - $95,000',
+                'skills_match': ['Python', 'SQL', 'Statistics']
+            })
+        
+        # Add more role recommendations based on skills
+        if len(recommendations) < 3:
+            recommendations.extend([
+                {
+                    'title': '🔒 Cybersecurity Analyst',
+                    'match': 'Medium',
+                    'reason': 'Technical background can transition to security roles',
+                    'salary': '$75,000 - $110,000',
+                    'skills_match': ['Security', 'Networking', 'Linux']
+                },
+                {
+                    'title': '📈 Business Analyst',
+                    'match': 'Medium', 
+                    'reason': 'Technical skills valuable for business analysis roles',
+                    'salary': '$70,000 - $100,000',
+                    'skills_match': ['Communication', 'Analysis', 'SQL']
+                }
+            ])
+        
+        return recommendations[:5]
+
+# Initialize resume parser
+resume_parser = ResumeParser()
+
+# Configure upload folder
+UPLOAD_FOLDER = 'uploads'
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+
+# Demo storage (fallback)
+demo_users = {}
+demo_questionnaires = []
+
+# ==================== ROUTES ====================
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/login', methods=['POST'])
+def login():
+    email = request.form['email']
+    password = request.form['password']
+    
+    if MONGODB_CONNECTED:
+        try:
+            user = users_collection.find_one({'email': email})
+            if user and bcrypt.checkpw(password.encode('utf-8'), user['password']):
+                session['user_id'] = str(user['_id'])
+                session['user_email'] = user['email']
+                session['user_name'] = user['name']
+                session['demo_mode'] = False
+                
+                # Update last login
+                users_collection.update_one(
+                    {'_id': user['_id']},
+                    {'$set': {'last_login': datetime.now()}}
+                )
+                
+                flash('Login successful!', 'success')
+                return redirect(url_for('dashboard'))
+            else:
+                flash('Invalid email or password!', 'error')
+                return redirect(url_for('index'))
+                
+        except Exception as e:
+            print(f"Login error: {e}")
+            flash('Login error. Please try again.', 'error')
+            return redirect(url_for('index'))
+    else:
+        # Demo mode
+        if email not in demo_users:
+            # Create new demo user
+            demo_users[email] = {
+                'name': 'Demo User',
+                'email': email,
+                'password': bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()),
+                'created_at': datetime.now()
+            }
+        
+        session['user_id'] = email
+        session['user_email'] = email
+        session['user_name'] = demo_users[email]['name']
+        session['demo_mode'] = True
+        flash('Login successful! (Demo Mode)', 'success')
+        return redirect(url_for('dashboard'))
+
+@app.route('/signup', methods=['GET', 'POST'])
+def signup():
+    if request.method == 'POST':
+        name = request.form['name']
+        email = request.form['email']
+        password = request.form['password']
+        
+        if MONGODB_CONNECTED:
+            try:
+                # Check if user exists
+                if users_collection.find_one({'email': email}):
+                    flash('Email already exists! Please login.', 'error')
+                    return redirect(url_for('index'))
+                
+                # Create new user
+                hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+                user_data = {
+                    'name': name,
+                    'email': email,
+                    'password': hashed_password,
+                    'created_at': datetime.now(),
+                    'last_login': None,
+                    'education_level': None
+                }
+                
+                result = users_collection.insert_one(user_data)
+                print(f"✅ New user created in MongoDB: {email}")
+                flash('Account created successfully! Please login.', 'success')
+                return redirect(url_for('index'))
+                
+            except Exception as e:
+                print(f"Signup error: {e}")
+                flash('Error creating account. Please try again.', 'error')
+                return redirect(url_for('index'))
+        else:
+            # Demo mode
+            if email in demo_users:
+                flash('Email already exists! Please login.', 'error')
+                return redirect(url_for('index'))
+            
+            demo_users[email] = {
+                'name': name,
+                'email': email,
+                'password': bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()),
+                'created_at': datetime.now()
+            }
+            flash('Account created successfully! Please login.', 'success')
+            return redirect(url_for('index'))
+    
+    return render_template('signup.html')
+
+@app.route('/admin-login', methods=['GET', 'POST'])
+def admin_login():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        
+        if username == 'admin' and password == 'admin123':
+            session['admin_logged_in'] = True
+            flash('Admin login successful!', 'success')
+            return redirect(url_for('admin_dashboard'))
+        else:
+            flash('Invalid admin credentials!', 'error')
+    
+    return render_template('admin_login.html')
+
+@app.route('/dashboard')
+def dashboard():
+    if 'user_id' not in session:
+        return redirect(url_for('index'))
+    return render_template('dashboard.html')
+
+@app.route('/questionnaire/<education_level>')
+def questionnaire(education_level):
+    if 'user_id' not in session:
+        return redirect(url_for('index'))
+    
+    if education_level in ['undergraduate', 'graduate', 'postgraduate']:
+        session['education_level'] = education_level
+        return render_template(f'questionnaire_{education_level}.html')
+    else:
+        flash('Invalid education level!', 'error')
+        return redirect(url_for('dashboard'))
+
+@app.route('/submit-questionnaire', methods=['POST'])
+def submit_questionnaire():
+    if 'user_id' not in session:
+        return redirect(url_for('index'))
+    
+    try:
+        # Collect all form data
+        education_level = request.form['education_level']
+        field_of_study = request.form['field_of_study']
+        technical_skills = request.form.get('technical_skills', '')
+        work_environment = request.form['work_environment']
+        experience = request.form['experience']
+        interests = request.form.getlist('interests')
+        
+        print(f"📝 Received questionnaire data:")
+        print(f"   Education: {education_level}")
+        print(f"   Field: {field_of_study}")
+        print(f"   Skills: {technical_skills}")
+        print(f"   Interests: {interests}")
+        print(f"   Work Environment: {work_environment}")
+        print(f"   Experience: {experience}")
+        
+        questionnaire_data = {
+            'user_id': session['user_id'],
+            'education_level': education_level,
+            'field_of_study': field_of_study,
+            'technical_skills': technical_skills,
+            'interests': interests,
+            'work_environment': work_environment,
+            'experience': experience,
+            'submitted_at': datetime.now()
+        }
+        
+        # Store data
+        if MONGODB_CONNECTED:
+            try:
+                result = questionnaires_collection.insert_one(questionnaire_data)
+                print(f"✅ Questionnaire saved to MongoDB with ID: {result.inserted_id}")
+            except Exception as e:
+                print(f"Error saving questionnaire: {e}")
+        else:
+            demo_questionnaires.append(questionnaire_data)
+            print("✅ Questionnaire saved to demo storage")
+        
+        session['questionnaire_data'] = questionnaire_data
+        flash('Questionnaire submitted successfully! Generating recommendations...', 'success')
+        return redirect(url_for('recommendations'))
+    
+    except Exception as e:
+        print(f"❌ Error in submit_questionnaire: {e}")
+        flash('Error submitting questionnaire. Please try again.', 'error')
+        return redirect(url_for('dashboard'))
+
+@app.route('/recommendations')
+def recommendations():
+    if 'user_id' not in session:
+        return redirect(url_for('index'))
+    
+    # Generate recommendations based on questionnaire data
+    recommendations_data = generate_recommendations()
+    
+    print(f"🎯 Generated {len(recommendations_data)} recommendations")
+    return render_template('recommendations.html', recommendations=recommendations_data)
+
+def generate_recommendations():
+    """Generate career recommendations based on questionnaire data"""
+    if 'questionnaire_data' not in session:
+        print("❌ No questionnaire data found in session")
+        return get_default_recommendations()
+    
+    data = session['questionnaire_data']
+    education_level = data.get('education_level', 'unknown')
+    field_of_study = data.get('field_of_study', '')
+    technical_skills = data.get('technical_skills', '')
+    interests = data.get('interests', [])
+    work_environment = data.get('work_environment', '')
+    experience = data.get('experience', '')
+    
+    print(f"🔍 Processing recommendations for:")
+    print(f"   Education Level: {education_level}")
+    print(f"   Field of Study: {field_of_study}")
+    print(f"   Technical Skills: {technical_skills}")
+    print(f"   Interests: {interests}")
+    print(f"   Work Environment: {work_environment}")
+    print(f"   Experience: {experience}")
+    
+    recommendations = []
+    
+    # ==================== UNDERGRADUATE RECOMMENDATIONS ====================
+    if education_level == 'undergraduate':
+        print("🎓 Generating UNDERGRADUATE recommendations")
+        
+        # Computer Science/IT related
+        if 'computer_science' in field_of_study or 'engineering' in field_of_study:
+            if 'Python' in technical_skills or 'Java' in technical_skills or 'Programming' in technical_skills:
+                recommendations.append({
+                    'title': '💻 Software Developer',
+                    'description': 'Build applications and systems using programming languages',
+                    'salary': '$85,000 - $120,000',
+                    'skills': 'Python, Java, Problem Solving, Algorithms',
+                    'match_score': 94,
+                    'type': 'tech'
+                })
+            
+            if 'Web Development' in technical_skills or 'HTML' in technical_skills or 'JavaScript' in technical_skills:
+                recommendations.append({
+                    'title': '🌐 Full Stack Developer',
+                    'description': 'Develop both front-end and back-end of web applications',
+                    'salary': '$75,000 - $110,000',
+                    'skills': 'HTML, CSS, JavaScript, React, Node.js',
+                    'match_score': 89,
+                    'type': 'tech'
+                })
+            
+            if 'Data Analysis' in technical_skills or 'data_science' in interests:
+                recommendations.append({
+                    'title': '📊 Data Analyst',
+                    'description': 'Analyze data to help businesses make informed decisions',
+                    'salary': '$65,000 - $95,000',
+                    'skills': 'SQL, Excel, Statistics, Python, Data Visualization',
+                    'match_score': 88,
+                    'type': 'tech'
+                })
+        
+        # Business related
+        if 'business' in field_of_study or 'business_analysis' in interests:
+            recommendations.append({
+                'title': '📈 Business Analyst',
+                'description': 'Bridge between IT and business operations',
+                'salary': '$70,000 - $100,000',
+                'skills': 'Communication, Analysis, SQL, Requirements Gathering',
+                'match_score': 85,
+                'type': 'non-tech'
+            })
+            
+            if 'Digital Marketing' in technical_skills:
+                recommendations.append({
+                    'title': '📱 Digital Marketing Specialist',
+                    'description': 'Promote products/services through digital channels',
+                    'salary': '$55,000 - $85,000',
+                    'skills': 'SEO, Social Media, Content Marketing, Analytics',
+                    'match_score': 82,
+                    'type': 'non-tech'
+                })
+        
+        # Cybersecurity
+        if 'cybersecurity' in interests or 'Security' in technical_skills:
+            recommendations.append({
+                'title': '🔒 Cybersecurity Analyst',
+                'description': 'Protect systems and networks from cyber threats',
+                'salary': '$75,000 - $110,000',
+                'skills': 'Security, Networking, Linux, Ethical Hacking',
+                'match_score': 87,
+                'type': 'tech'
+            })
+        
+        # Science & Research
+        if 'science' in field_of_study or 'research' in interests:
+            recommendations.append({
+                'title': '🔬 Research Assistant',
+                'description': 'Support scientific research in academic or industrial settings',
+                'salary': '$45,000 - $65,000',
+                'skills': 'Research Methods, Data Collection, Analysis',
+                'match_score': 83,
+                'type': 'research'
+            })
+            
+        # Government jobs
+        if 'government' in work_environment:
+            recommendations.append({
+                'title': '🏛️ Government IT Specialist',
+                'description': 'Work in public sector IT departments with job security',
+                'salary': '$60,000 - $90,000',
+                'skills': 'General IT, Documentation, Compliance, Public Service',
+                'match_score': 80,
+                'type': 'government'
+            })
+    
+    # ==================== GRADUATE RECOMMENDATIONS ====================
+    elif education_level == 'graduate':
+        print("🎓 Generating GRADUATE recommendations")
+        
+        # Management and Leadership roles
+        if 'management' in interests or 'Team Leadership' in technical_skills:
+            recommendations.append({
+                'title': '👨‍💼 Project Manager',
+                'description': 'Lead projects and coordinate teams to achieve business goals',
+                'salary': '$90,000 - $130,000',
+                'skills': 'Leadership, Planning, Communication, Risk Management',
+                'match_score': 91,
+                'type': 'management'
+            })
+            
+            if 'business_mba' in field_of_study:
+                recommendations.append({
+                    'title': '💼 Product Manager',
+                    'description': 'Define product vision and work with cross-functional teams',
+                    'salary': '$100,000 - $150,000',
+                    'skills': 'Strategy, Market Research, User Experience, Roadmapping',
+                    'match_score': 89,
+                    'type': 'management'
+                })
+        
+        # Technical Specialist roles
+        if 'technical_specialist' in interests or 'Cloud Computing' in technical_skills:
+            recommendations.append({
+                'title': '☁️ Cloud Solutions Architect',
+                'description': 'Design and implement cloud infrastructure solutions',
+                'salary': '$120,000 - $160,000',
+                'skills': 'AWS, Azure, GCP, Infrastructure Design, Security',
+                'match_score': 93,
+                'type': 'tech'
+            })
+            
+            if 'DevOps' in technical_skills:
+                recommendations.append({
+                    'title': '⚙️ DevOps Engineer',
+                    'description': 'Streamline development and operations processes',
+                    'salary': '$110,000 - $150,000',
+                    'skills': 'CI/CD, Docker, Kubernetes, Automation, Monitoring',
+                    'match_score': 90,
+                    'type': 'tech'
+                })
+        
+        # Data & Analytics roles
+        if 'Data Analysis' in technical_skills or 'data_science' in interests:
+            recommendations.append({
+                'title': '📈 Senior Data Analyst',
+                'description': 'Lead data analysis projects and provide strategic insights',
+                'salary': '$85,000 - $120,000',
+                'skills': 'SQL, Python, Statistics, Business Intelligence, Visualization',
+                'match_score': 88,
+                'type': 'tech'
+            })
+            
+            if 'Machine Learning' in technical_skills:
+                recommendations.append({
+                    'title': '🤖 Machine Learning Engineer',
+                    'description': 'Build and deploy machine learning models and AI systems',
+                    'salary': '$110,000 - $150,000',
+                    'skills': 'Python, TensorFlow, PyTorch, Statistics, ML Algorithms',
+                    'match_score': 92,
+                    'type': 'tech'
+                })
+        
+        # Consulting roles
+        if 'consulting' in interests:
+            recommendations.append({
+                'title': '💡 IT Consultant',
+                'description': 'Advise businesses on technology strategy and implementation',
+                'salary': '$85,000 - $120,000',
+                'skills': 'Communication, Problem Solving, Business Acumen, Presentation',
+                'match_score': 86,
+                'type': 'consulting'
+            })
+            
+        # Entrepreneurship
+        if 'entrepreneurship' in interests:
+            recommendations.append({
+                'title': '🚀 Startup Founder',
+                'description': 'Build your own business and bring innovative ideas to market',
+                'salary': 'Varies (Equity Based)',
+                'skills': 'Innovation, Risk-taking, Business Development, Fundraising',
+                'match_score': 88,
+                'type': 'entrepreneurship'
+            })
+    
+    # ==================== POSTGRADUATE RECOMMENDATIONS ====================
+    elif education_level == 'postgraduate':
+        print("🎓 Generating POSTGRADUATE recommendations")
+        
+        # Research & Academia
+        if 'academia' in interests or 'research' in interests:
+            recommendations.append({
+                'title': '🎓 University Professor',
+                'description': 'Teach and conduct research in academic institutions',
+                'salary': '$80,000 - $120,000',
+                'skills': 'Teaching, Research, Publication, Mentoring, Grant Writing',
+                'match_score': 88,
+                'type': 'academia'
+            })
+            
+            recommendations.append({
+                'title': '🔬 Research Scientist',
+                'description': 'Conduct advanced research in industrial or academic settings',
+                'salary': '$90,000 - $140,000',
+                'skills': 'Research Methodology, Analysis, Publication, Experiment Design',
+                'match_score': 90,
+                'type': 'research'
+            })
+        
+        # Advanced technical roles
+        if 'Machine Learning' in technical_skills or 'Deep Learning' in technical_skills:
+            recommendations.append({
+                'title': '🧠 AI Research Scientist',
+                'description': 'Conduct cutting-edge research in artificial intelligence',
+                'salary': '$150,000 - $250,000',
+                'skills': 'Deep Learning, Research, Python, TensorFlow, PyTorch',
+                'match_score': 95,
+                'type': 'research'
+            })
+        
+        # Leadership roles
+        recommendations.append({
+            'title': '👨‍💼 Senior Technology Manager',
+            'description': 'Lead technology strategy for large organizations',
+            'salary': '$130,000 - $200,000',
+            'skills': 'Leadership, Strategy, Budget Management, Team Building',
+            'match_score': 90,
+            'type': 'management'
+        })
+        
+        # Specialized consulting
+        recommendations.append({
+            'title': '💎 Senior Consultant',
+            'description': 'Provide expert advice to organizations on complex challenges',
+            'salary': '$120,000 - $180,000',
+            'skills': 'Expertise, Communication, Problem Solving, Industry Knowledge',
+            'match_score': 87,
+            'type': 'consulting'
+        })
+        
+        # Government research
+        if 'government' in work_environment:
+            recommendations.append({
+                'title': '🏛️ Policy Research Analyst',
+                'description': 'Conduct research to inform government policies and decisions',
+                'salary': '$70,000 - $110,000',
+                'skills': 'Research, Analysis, Policy Knowledge, Report Writing',
+                'match_score': 85,
+                'type': 'government'
+            })
+    
+    # Add default recommendations if not enough personalized ones
+    if len(recommendations) < 2:
+        print(f"⚠️ Only {len(recommendations)} personalized recommendations, adding defaults")
+        default_recs = get_default_recommendations()
+        for rec in default_recs:
+            if not any(r['title'] == rec['title'] for r in recommendations):
+                recommendations.append(rec)
+    
+    # Sort by match score and return top 5
+    recommendations.sort(key=lambda x: x['match_score'], reverse=True)
+    print(f"✅ Final recommendations: {[r['title'] for r in recommendations]}")
+    return recommendations[:5]
+
+def get_default_recommendations():
+    """Return default recommendations for all education levels"""
+    return [
+        {
+            'title': '💻 Software Developer',
+            'description': 'Build applications and systems using programming languages',
+            'salary': '$85,000 - $120,000',
+            'skills': 'Python, Java, Problem Solving, Algorithms',
+            'match_score': 85,
+            'type': 'tech'
+        },
+        {
+            'title': '📊 Data Analyst',
+            'description': 'Analyze data to help businesses make decisions',
+            'salary': '$65,000 - $95,000',
+            'skills': 'SQL, Excel, Statistics, Data Visualization',
+            'match_score': 82,
+            'type': 'tech'
+        },
+        {
+            'title': '🔒 Cybersecurity Analyst',
+            'description': 'Protect systems and networks from cyber threats',
+            'salary': '$75,000 - $110,000',
+            'skills': 'Security, Networking, Linux, Ethical Hacking',
+            'match_score': 80,
+            'type': 'tech'
+        },
+        {
+            'title': '📈 Business Analyst',
+            'description': 'Bridge between IT and business operations',
+            'salary': '$70,000 - $100,000',
+            'skills': 'Communication, Analysis, SQL, Requirements Gathering',
+            'match_score': 78,
+            'type': 'non-tech'
+        }
+    ]
+
+# ==================== NEW AI AGENT & RESUME ROUTES ====================
+
+@app.route('/career-agent')
+def career_agent():
+    if 'user_id' not in session:
+        return redirect(url_for('index'))
+    return render_template('career_agent.html')
+
+@app.route('/ask-agent', methods=['POST'])
+def ask_agent():
+    if 'user_id' not in session:
+        return redirect(url_for('index'))
+    
+    user_question = request.form['question']
+    print(f"🤖 AI Agent received question: {user_question}")
+    
+    response = career_agent.analyze_query(user_question)
+    
+    return jsonify({
+        'answer': response['answer'],
+        'related_careers': response['related_careers'],
+        'suggested_skills': response['suggested_skills'],
+        'next_steps': response['next_steps']
+    })
+
+@app.route('/resume-upload')
+def resume_upload():
+    if 'user_id' not in session:
+        return redirect(url_for('index'))
+    return render_template('resume_upload.html')
+
+@app.route('/upload-resume', methods=['POST'])
+def upload_resume():
+    if 'user_id' not in session:
+        return redirect(url_for('index'))
+    
+    if 'resume' not in request.files:
+        flash('No file selected', 'error')
+        return redirect(url_for('resume_upload'))
+    
+    file = request.files['resume']
+    if file.filename == '':
+        flash('No file selected', 'error')
+        return redirect(url_for('resume_upload'))
+    
+    if file and resume_parser.allowed_file(file.filename):
+        filename = secure_filename(file.filename)
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(file_path)
+        
+        print(f"📄 Resume uploaded: {filename}")
+        
+        # Parse resume
+        resume_data = resume_parser.parse_resume(file_path)
+        
+        if resume_data:
+            # Get job recommendations based on resume
+            job_recommendations = resume_parser.recommend_jobs_based_on_resume(resume_data)
+            
+            # Store in session
+            session['resume_data'] = resume_data
+            session['resume_recommendations'] = job_recommendations
+            
+            flash('Resume analyzed successfully!', 'success')
+            return redirect(url_for('resume_results'))
+        else:
+            flash('Error analyzing resume. Please try again.', 'error')
+            return redirect(url_for('resume_upload'))
+    
+    else:
+        flash('Invalid file type. Please upload PDF, DOCX, or TXT.', 'error')
+        return redirect(url_for('resume_upload'))
+
+@app.route('/resume-results')
+def resume_results():
+    if 'user_id' not in session:
+        return redirect(url_for('index'))
+    
+    resume_data = session.get('resume_data', {})
+    recommendations = session.get('resume_recommendations', [])
+    
+    return render_template('resume_results.html', 
+                         resume_data=resume_data, 
+                         recommendations=recommendations)
+
+@app.route('/admin-dashboard')
+def admin_dashboard():
+    if not session.get('admin_logged_in'):
+        return redirect(url_for('admin_login'))
+    
+    # Get statistics
+    stats = {
+        'total_users': 0,
+        'total_questionnaires': 0,
+        'education_distribution': {'undergraduate': 0, 'graduate': 0, 'postgraduate': 0}
+    }
+    
+    if MONGODB_CONNECTED:
+        try:
+            stats['total_users'] = users_collection.count_documents({})
+            stats['total_questionnaires'] = questionnaires_collection.count_documents({})
+            
+            # Get education distribution
+            pipeline = [
+                {'$group': {'_id': '$education_level', 'count': {'$sum': 1}}}
+            ]
+            edu_stats = questionnaires_collection.aggregate(pipeline)
+            for item in edu_stats:
+                if item['_id'] in stats['education_distribution']:
+                    stats['education_distribution'][item['_id']] = item['count']
+                    
+        except Exception as e:
+            print(f"Error getting stats: {e}")
+    else:
+        # Demo stats
+        stats['total_users'] = len(demo_users)
+        stats['total_questionnaires'] = len(demo_questionnaires)
+        stats['education_distribution'] = {'undergraduate': 65, 'graduate': 25, 'postgraduate': 10}
+    
+    return render_template('admin_dashboard.html', stats=stats)
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    flash('You have been logged out successfully!', 'info')
+    return redirect(url_for('index'))
+
+
+
+
+
+
+
+
+# Add these routes before the if __name__ == '__main__':
+
+@app.route('/skill-analysis')
+def skill_analysis():
+    if 'user_id' not in session:
+        return redirect(url_for('index'))
+    return render_template('skill_analysis.html')
+
+@app.route('/job-market')
+def job_market():
+    if 'user_id' not in session:
+        return redirect(url_for('index'))
+    return render_template('job_market.html')
+
+@app.route('/learning-path')
+def learning_path():
+    if 'user_id' not in session:
+        return redirect(url_for('index'))
+    return render_template('learning_path.html')
+
+@app.route('/profile')
+def profile():
+    if 'user_id' not in session:
+        return redirect(url_for('index'))
+    return render_template('profile.html')
+if __name__ == '__main__':
+    app.run(debug=True, host='127.0.0.1', port=5000
+    
+)             
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+******************************
+the updated app.py
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
+import random
+import hashlib
+from datetime import datetime
+
+app = Flask(__name__)
+app.secret_key = 'career-guidance-secret-key-2024'
+
+# ==================== USER STORAGE ====================
+users = {
+    'test@example.com': {
+        'name': 'Demo User',
+        'email': 'test@example.com',
+        'password': hashlib.sha256('password123'.encode()).hexdigest(),
+        'education_level': 'general',
+        'profile_completion': 30,
+        'completed_questionnaire': False,
+        'created_at': '2024-01-01'
+    }
+}
+
+# ==================== MONGODB SIMULATION ====================
+print("🟢 Attempting to connect to MongoDB...")
+print("📊 MongoDB connected successfully! (Simulated)")
+print("🔗 Database: career_guidance_system")
+print("👥 Collection: users")
+
+# ==================== DASHBOARD ROUTE - FIXED ====================
+@app.route('/dashboard')
+def dashboard():
+    if 'user_id' not in session:
+        print("❌ User not logged in, redirecting to index")
+        flash('Please login first', 'error')
+        return redirect(url_for('index'))
+    
+    print(f"📊 Dashboard accessed by: {session['user_id']}")
+    
+    # Get user data
+    user_email = session['user_id']
+    user_data = users.get(user_email, {})
+    
+    # Create profile data for dashboard
+    profile_data = {
+        'profile_completion': user_data.get('profile_completion', 0),
+        'completed_questionnaire': user_data.get('completed_questionnaire', False),
+        'education_level': user_data.get('education_level', 'Not set')
+    }
+    
+    return render_template('dashboard.html', profile=profile_data)
+
+# ==================== EDUCATION SELECTION ROUTES ====================
+@app.route('/select-education/<level>')
+def select_education(level):
+    if 'user_id' not in session:
+        flash('Please login first', 'error')
+        return redirect(url_for('index'))
+    
+    # Update user's education level
+    user_email = session['user_id']
+    if user_email in users:
+        users[user_email]['education_level'] = level
+        users[user_email]['profile_completion'] = 60  # Increase completion
+        session['education_level'] = level
+        
+        print(f"✅ Education level updated to: {level} for {user_email}")
+        flash(f'Education level set to {level.capitalize()}!', 'success')
+    
+    return redirect(url_for('dashboard'))
+
+# ==================== RESUME UPLOAD ROUTE ====================
+@app.route('/resume-upload')
+def resume_upload():
+    if 'user_id' not in session:
+        flash('Please login first', 'error')
+        return redirect(url_for('index'))
+    
+    print(f"📄 Resume upload accessed by: {session['user_id']}")
+    return render_template('resume_upload.html')
+
+# ==================== RECOMMENDATIONS ROUTE ====================
+@app.route('/recommendations')
+def recommendations():
+    if 'user_id' not in session:
+        flash('Please login first', 'error')
+        return redirect(url_for('index'))
+    
+    print(f"🎯 Recommendations accessed by: {session['user_id']}")
+    
+    # Sample recommendations based on education level
+    user_education = session.get('education_level', 'general')
+    
+    recommendations_data = {
+        'undergraduate': [
+            {'title': 'Software Developer Intern', 'company': 'Tech Corp', 'match': '85%'},
+            {'title': 'Data Analyst Trainee', 'company': 'Analytics Inc', 'match': '78%'},
+            {'title': 'IT Support Specialist', 'company': 'Service Company', 'match': '72%'}
+        ],
+        'graduate': [
+            {'title': 'Junior Software Engineer', 'company': 'Software Solutions', 'match': '88%'},
+            {'title': 'Business Analyst', 'company': 'Consulting Firm', 'match': '82%'},
+            {'title': 'Systems Administrator', 'company': 'IT Services', 'match': '75%'}
+        ],
+        'postgraduate': [
+            {'title': 'Senior Data Scientist', 'company': 'AI Research Lab', 'match': '92%'},
+            {'title': 'Machine Learning Engineer', 'company': 'Tech Giant', 'match': '89%'},
+            {'title': 'IT Project Manager', 'company': 'Enterprise Solutions', 'match': '85%'}
+        ],
+        'general': [
+            {'title': 'Career Assessment Required', 'company': 'Complete your profile', 'match': '0%'}
+        ]
+    }
+    
+    user_recommendations = recommendations_data.get(user_education, recommendations_data['general'])
+    
+    return render_template('recommendations.html', recommendations=user_recommendations)
+
+# ==================== PROFILE ROUTE ====================
+@app.route('/profile')
+def profile():
+    if 'user_id' not in session:
+        flash('Please login first', 'error')
+        return redirect(url_for('index'))
+    
+    print(f"👤 Profile accessed by: {session['user_id']}")
+    
+    user_email = session['user_id']
+    user_data = users.get(user_email, {})
+    
+    return render_template('profile.html', user=user_data)
+
+# ==================== ADMIN LOGIN ROUTE ====================
+@app.route('/admin-login', methods=['GET', 'POST'])
+def admin_login():
+    """Handle admin login"""
+    if request.method == 'GET':
+        print("🔐 Admin login page accessed")
+        return render_template('admin_login.html')
+    
+    # Handle POST request for admin login
+    try:
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '').strip()
+        
+        print(f"🔐 Admin login attempt: {username}")
+        
+        # Validation
+        if not username or not password:
+            flash('Admin username and password are required', 'error')
+            return redirect('/admin-login')
+        
+        # Check admin credentials (you can change these)
+        admin_credentials = {
+            'admin': 'admin123',
+            'careeradmin': 'career2024'
+        }
+        
+        if username in admin_credentials and admin_credentials[username] == password:
+            # Successful admin login
+            session['admin_id'] = username
+            session['admin_logged_in'] = True
+            session['user_role'] = 'admin'
+            
+            print(f"✅ Admin logged in successfully: {username}")
+            flash(f'Welcome, Admin {username}!', 'success')
+            return redirect('/admin-dashboard')
+        else:
+            # Failed admin login
+            print(f"❌ Admin login failed for: {username}")
+            flash('Invalid admin credentials', 'error')
+            return redirect('/admin-login')
+            
+    except Exception as e:
+        print(f"❌ Admin login error: {e}")
+        flash('Admin login failed. Please try again.', 'error')
+        return redirect('/admin-login')
+
+# ==================== ADMIN DASHBOARD ROUTE ====================
+@app.route('/admin-dashboard')
+def admin_dashboard():
+    """Admin dashboard page"""
+    if not session.get('admin_logged_in'):
+        print("❌ Unauthorized access to admin dashboard")
+        flash('Please login as admin first', 'error')
+        return redirect('/admin-login')
+    
+    print(f"📊 Admin dashboard accessed by: {session.get('admin_id')}")
+    
+    # Get user statistics
+    user_count = len(users)
+    demo_users = sum(1 for user in users.values() if user.get('email') == 'test@example.com')
+    real_users = user_count - demo_users
+    
+    # Education level distribution
+    education_distribution = {
+        'undergraduate': 65,
+        'graduate': 25, 
+        'postgraduate': 10
+    }
+    
+    # Career recommendations data
+    career_data = {
+        'Software Developer': 45,
+        'Data Analyst': 30,
+        'Cybersecurity': 25,
+        'Business Analyst': 20,
+        'Research': 15
+    }
+    
+    return render_template('admin_dashboard.html', 
+                         user_count=user_count,
+                         demo_users=demo_users,
+                         real_users=real_users,
+                         users=users,
+                         education_distribution=education_distribution,
+                         career_data=career_data)
+
+# ==================== ADMIN LOGOUT ROUTE ====================
+@app.route('/admin-logout')
+def admin_logout():
+    """Handle admin logout"""
+    admin_id = session.get('admin_id', 'Unknown')
+    session.pop('admin_id', None)
+    session.pop('admin_logged_in', None)
+    session.pop('user_role', None)
+    
+    print(f"👋 Admin logged out: {admin_id}")
+    flash('Admin logged out successfully!', 'info')
+    return redirect('/admin-login')
+
+# ==================== SIGNUP ROUTE ====================
+@app.route('/signup', methods=['GET', 'POST'])
+def signup():
+    """Handle user registration"""
+    if request.method == 'GET':
+        print("📝 Signup page accessed")
+        return render_template('signup.html')
+    
+    # Handle POST request for signup
+    try:
+        name = request.form.get('name', '').strip()
+        email = request.form.get('email', '').strip().lower()
+        password = request.form.get('password', '').strip()
+        
+        print(f"📝 Signup attempt - Name: {name}, Email: {email}")
+        
+        # Validation
+        if not name or not email or not password:
+            flash('All fields are required', 'error')
+            return redirect('/signup')
+        
+        if len(password) < 6:
+            flash('Password must be at least 6 characters', 'error')
+            return redirect('/signup')
+        
+        # Check if user already exists
+        if email in users:
+            flash('Email already registered. Please login.', 'error')
+            return redirect('/')
+        
+        # Create user
+        users[email] = {
+            'name': name,
+            'email': email,
+            'password': hashlib.sha256(password.encode()).hexdigest(),
+            'education_level': 'general',
+            'profile_completion': 30,
+            'completed_questionnaire': False,
+            'created_at': datetime.now().strftime('%Y-%m-%d')
+        }
+        
+        print(f"✅ New user registered: {email}")
+        print(f"📊 Users in database: {len(users)}")
+        
+        # AUTO LOGIN AFTER SIGNUP
+        session['user_id'] = email
+        session['user_name'] = name
+        session['education_level'] = 'general'
+        
+        print(f"✅ Auto-login after signup: {email}")
+        flash(f'Welcome to Career AI, {name}! Your account has been created successfully.', 'success')
+        return redirect(url_for('dashboard'))
+        
+    except Exception as e:
+        print(f"❌ Signup error: {e}")
+        flash('Registration failed. Please try again.', 'error')
+        return redirect('/signup')
+
+# ==================== LOGIN ROUTE ====================
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    """Handle user login"""
+    if request.method == 'GET':
+        print("🔐 Login page accessed")
+        # If user is already logged in, redirect to dashboard
+        if 'user_id' in session:
+            return redirect(url_for('dashboard'))
+        return redirect('/')  # Redirect to main page which has login form
+    
+    # Handle POST request for login
+    print("🔐 Login attempt")
+    
+    try:
+        email = request.form.get('email', '').strip().lower()
+        password = request.form.get('password', '').strip()
+        
+        print(f"🔐 Login attempt for: {email}")
+        
+        # Validation
+        if not email or not password:
+            flash('Email and password are required', 'error')
+            return redirect('/')
+        
+        # Check if user exists and password matches
+        hashed_password = hashlib.sha256(password.encode()).hexdigest()
+        
+        if email in users and users[email]['password'] == hashed_password:
+            # Successful login
+            session['user_id'] = email
+            session['user_name'] = users[email]['name']
+            session['education_level'] = users[email].get('education_level', 'general')
+            
+            print(f"✅ User logged in successfully: {email}")
+            print(f"👤 Session created for: {users[email]['name']}")
+            flash(f'Welcome back, {users[email]["name"]}!', 'success')
+            return redirect(url_for('dashboard'))
+        else:
+            # Failed login
+            print(f"❌ Login failed for: {email}")
+            flash('Invalid email or password', 'error')
+            return redirect('/')
+            
+    except Exception as e:
+        print(f"❌ Login error: {e}")
+        flash('Login failed. Please try again.', 'error')
+        return redirect('/')
+
+# ==================== ENHANCED CAREER AI ASSISTANT ====================
+class EnhancedCareerAI:
+    def __init__(self):
+        self.career_domains = {
+            "technology": {
+                "ai_ml": {
+                    "name": "🤖 Artificial Intelligence & Machine Learning",
+                    "description": "Building intelligent systems that learn and adapt",
+                    "demand": "Very High (45% growth)",
+                    "skills": ["Python", "TensorFlow", "Deep Learning", "Statistics", "MLOps"],
+                    "roadmap": self._get_ai_ml_roadmap(),
+                    "salary": "₹8-35 LPA",
+                    "companies": ["Google", "Microsoft", "Amazon", "TCS", "Infosys"]
+                },
+                "data_science": {
+                    "name": "📊 Data Science & Analytics",
+                    "description": "Extracting insights from data to drive decisions",
+                    "demand": "High (35% growth)", 
+                    "skills": ["Python", "SQL", "Statistics", "Data Visualization", "Big Data"],
+                    "roadmap": self._get_data_science_roadmap(),
+                    "salary": "₹7-30 LPA",
+                    "companies": ["Analytics firms", "IT companies", "E-commerce", "Banks"]
+                },
+                "cybersecurity": {
+                    "name": "🔒 Cybersecurity",
+                    "description": "Protecting systems and data from cyber threats",
+                    "demand": "Very High (50% growth)",
+                    "skills": ["Network Security", "Ethical Hacking", "Cryptography", "Risk Assessment"],
+                    "roadmap": self._get_cybersecurity_roadmap(),
+                    "salary": "₹6-25 LPA", 
+                    "companies": ["Security firms", "Banks", "IT companies", "Government"]
+                },
+                "cloud_computing": {
+                    "name": "☁️ Cloud Computing",
+                    "description": "Designing and managing cloud infrastructure",
+                    "demand": "High (40% growth)",
+                    "skills": ["AWS/Azure", "Docker", "Kubernetes", "DevOps", "Networking"],
+                    "roadmap": self._get_cloud_roadmap(),
+                    "salary": "₹8-28 LPA",
+                    "companies": ["AWS", "Azure", "Google Cloud", "IT services"]
+                }
+            },
+            "business": {
+                "digital_marketing": {
+                    "name": "📱 Digital Marketing",
+                    "description": "Promoting products through digital channels",
+                    "demand": "High (30% growth)",
+                    "skills": ["SEO", "Social Media", "Content Marketing", "Analytics"],
+                    "roadmap": self._get_digital_marketing_roadmap(),
+                    "salary": "₹4-20 LPA",
+                    "companies": ["Marketing agencies", "E-commerce", "Startups"]
+                },
+                "product_management": {
+                    "name": "💼 Product Management", 
+                    "description": "Leading product development and strategy",
+                    "demand": "High (25% growth)",
+                    "skills": ["Market Research", "Strategy", "Leadership", "Analytics"],
+                    "roadmap": self._get_product_management_roadmap(),
+                    "salary": "₹12-40 LPA",
+                    "companies": ["Tech companies", "Startups", "E-commerce"]
+                },
+                "business_analysis": {
+                    "name": "📈 Business Analysis",
+                    "description": "Bridging business needs with technology solutions",
+                    "demand": "Medium (20% growth)",
+                    "skills": ["Requirements Gathering", "SQL", "Process Modeling", "Communication"],
+                    "roadmap": self._get_business_analysis_roadmap(),
+                    "salary": "₹5-18 LPA",
+                    "companies": ["IT companies", "Consulting firms", "Banks"]
+                }
+            },
+            "creative": {
+                "ui_ux_design": {
+                    "name": "🎨 UI/UX Design",
+                    "description": "Designing user-friendly digital experiences", 
+                    "demand": "High (35% growth)",
+                    "skills": ["Figma", "User Research", "Wireframing", "Prototyping"],
+                    "roadmap": self._get_ui_ux_roadmap(),
+                    "salary": "₹5-22 LPA",
+                    "companies": ["Tech companies", "Startups", "Design agencies"]
+                }
+            },
+            "emerging": {
+                "blockchain": {
+                    "name": "⛓️ Blockchain Technology",
+                    "description": "Developing decentralized applications and systems",
+                    "demand": "Very High (60% growth)",
+                    "skills": ["Solidity", "Smart Contracts", "Cryptography", "Web3"],
+                    "roadmap": self._get_blockchain_roadmap(),
+                    "salary": "₹10-35 LPA",
+                    "companies": ["Crypto companies", "FinTech", "Startups"]
+                }
+            }
+        }
+        
+        self.job_market_data = {
+            "trending_skills": [
+                "Artificial Intelligence/Machine Learning",
+                "Cloud Computing (AWS/Azure/GCP)",
+                "Data Science & Analytics", 
+                "Cybersecurity",
+                "Digital Marketing",
+                "Blockchain Development",
+                "UI/UX Design",
+                "Product Management"
+            ],
+            "high_demand_roles": [
+                "Machine Learning Engineer",
+                "Data Scientist", 
+                "Cloud Architect",
+                "Cybersecurity Analyst",
+                "Full Stack Developer",
+                "DevOps Engineer",
+                "Product Manager",
+                "Digital Marketing Manager"
+            ],
+            "salary_trends": {
+                "ai_ml": "₹8-35 LPA",
+                "data_science": "₹7-30 LPA", 
+                "cloud_computing": "₹8-28 LPA",
+                "cybersecurity": "₹6-25 LPA",
+                "product_management": "₹12-40 LPA",
+                "digital_marketing": "₹4-20 LPA"
+            },
+            "remote_work_stats": "42% of companies offer remote options",
+            "hiring_trends": "35% increase in tech hiring in 2024"
+        }
+
+    def understand_and_respond(self, user_message):
+        user_message_lower = user_message.lower().strip()
+        
+        print(f"💬 User question: {user_message}")
+        
+        # Career roadmap requests
+        if any(word in user_message_lower for word in ['roadmap', 'path', 'journey', 'how to become']):
+            return self._generate_career_roadmap(user_message_lower)
+        
+        # Job market queries
+        elif any(word in user_message_lower for word in ['job market', 'market trend', 'demand', 'hiring']):
+            return self._get_job_market_insights()
+        
+        # Specific career domain queries
+        elif any(word in user_message_lower for word in ['ai', 'machine learning', 'artificial intelligence']):
+            return self._get_career_domain_info("ai_ml")
+        elif any(word in user_message_lower for word in ['data science', 'data analyst']):
+            return self._get_career_domain_info("data_science")
+        elif any(word in user_message_lower for word in ['cyber security', 'cybersecurity']):
+            return self._get_career_domain_info("cybersecurity")
+        elif any(word in user_message_lower for word in ['cloud', 'aws', 'azure']):
+            return self._get_career_domain_info("cloud_computing")
+        elif any(word in user_message_lower for word in ['digital marketing', 'seo', 'social media']):
+            return self._get_career_domain_info("digital_marketing")
+        elif any(word in user_message_lower for word in ['product management', 'product manager']):
+            return self._get_career_domain_info("product_management")
+        elif any(word in user_message_lower for word in ['ui ux', 'ux design', 'user experience']):
+            return self._get_career_domain_info("ui_ux_design")
+        elif any(word in user_message_lower for word in ['blockchain', 'web3', 'crypto']):
+            return self._get_career_domain_info("blockchain")
+        elif any(word in user_message_lower for word in ['business analysis', 'business analyst']):
+            return self._get_career_domain_info("business_analysis")
+        
+        # General career guidance
+        elif any(word in user_message_lower for word in ['career', 'job', 'profession']):
+            return self._get_career_overview()
+        elif any(word in user_message_lower for word in ['hello', 'hi', 'hey']):
+            return self._greet_user()
+        elif any(word in user_message_lower for word in ['thank', 'thanks']):
+            return "You're welcome! 😊 I'm glad I could help you plan your career journey. Feel free to ask about any specific career path!"
+        
+        else:
+            return self._get_general_guidance(user_message)
+
+    def _greet_user(self):
+        return """🌟 **Welcome to Your Enhanced Career AI Assistant!** 🌟
+
+I'm your intelligent career guide with **advanced features**:
+
+🎯 **Career Roadmap Generator** - Get step-by-step learning paths
+📊 **Real-time Job Market Insights** - Latest trends and demands  
+🚀 **Specialized Career Domains** - In-depth guidance for modern careers
+💡 **Skill Development Plans** - Structured learning approaches
+
+**Try asking me:**
+• "Show me AI career roadmap"
+• "What's the job market for data science?"
+• "How to become a cybersecurity expert?"
+• "Blockchain developer career path"
+
+**What career would you like to explore?**"""
+
+    def _generate_career_roadmap(self, query):
+        # Analyze query to determine which career roadmap to generate
+        if any(word in query for word in ['ai', 'machine learning', 'artificial intelligence']):
+            domain = self.career_domains["technology"]["ai_ml"]
+        elif any(word in query for word in ['data science', 'data analyst']):
+            domain = self.career_domains["technology"]["data_science"]
+        elif any(word in query for word in ['cyber security', 'cybersecurity']):
+            domain = self.career_domains["technology"]["cybersecurity"]
+        elif any(word in query for word in ['cloud', 'aws', 'azure']):
+            domain = self.career_domains["technology"]["cloud_computing"]
+        elif any(word in query for word in ['digital marketing']):
+            domain = self.career_domains["business"]["digital_marketing"]
+        elif any(word in query for word in ['product management', 'product manager']):
+            domain = self.career_domains["business"]["product_management"]
+        elif any(word in query for word in ['ui ux', 'ux design']):
+            domain = self.career_domains["creative"]["ui_ux_design"]
+        elif any(word in query for word in ['blockchain', 'web3']):
+            domain = self.career_domains["emerging"]["blockchain"]
+        elif any(word in query for word in ['business analysis', 'business analyst']):
+            domain = self.career_domains["business"]["business_analysis"]
+        else:
+            return self._get_career_overview()
+        
+        return f"""🗺️ **Career Roadmap: {domain['name']}**
+
+**{domain['description']}**
+
+📈 **Market Demand:** {domain['demand']}
+💰 **Salary Range:** {domain['salary']}
+🏢 **Top Companies:** {', '.join(domain['companies'][:5])}
+
+**🚀 Step-by-Step Career Roadmap:**
+
+{domain['roadmap']}
+
+**💡 Pro Tips:**
+• Build projects to showcase your skills
+• Network with professionals in the field
+• Stay updated with latest trends
+• Consider relevant certifications
+
+**Ready to start your journey? Which step interests you most?**"""
+
+    def _get_career_domain_info(self, domain_key):
+        # Find the domain in our structure
+        domain = None
+        for category in self.career_domains.values():
+            if domain_key in category:
+                domain = category[domain_key]
+                break
+        
+        if not domain:
+            return "I specialize in various career domains. Could you specify which field you're interested in?"
+        
+        return f"""🎯 **Career Domain: {domain['name']}**
+
+**Description:** {domain['description']}
+
+**📊 Market Insights:**
+• Demand: {domain['demand']}
+• Salary Range: {domain['salary']}
+• Top Companies: {', '.join(domain['companies'][:5])}
+
+**🔧 Key Skills Required:**
+{chr(10).join(['• ' + skill for skill in domain['skills']])}
+
+**Want to see the complete career roadmap for {domain['name']}?**"""
+
+    def _get_job_market_insights(self):
+        trends = self.job_market_data
+        return f"""📈 **Real-time Job Market Insights 2024**
+
+🔥 **Most In-Demand Skills:**
+{chr(10).join(['• ' + skill for skill in trends['trending_skills'][:6]])}
+
+🚀 **High-Demand Roles:**
+{chr(10).join(['• ' + role for role in trends['high_demand_roles'][:6]])}
+
+💰 **Salary Trends:**
+{chr(10).join(['• ' + field + ': ' + salary for field, salary in trends['salary_trends'].items()])}
+
+🌍 **Market Statistics:**
+• Remote Work: {trends['remote_work_stats']}
+• Hiring Trends: {trends['hiring_trends']}
+
+**💡 Key Insights:**
+• Technology roles continue to dominate hiring
+• AI/ML and Cybersecurity show highest growth
+• Remote and hybrid work models are becoming standard
+• Continuous learning is essential for career growth
+
+**Which career field would you like to explore in detail?**"""
+
+    def _get_career_overview(self):
+        return """🎯 **Career Exploration Hub**
+
+I specialize in these **modern career domains**:
+
+🤖 **Technology Careers:**
+• Artificial Intelligence & Machine Learning
+• Data Science & Analytics
+• Cybersecurity
+• Cloud Computing
+
+💼 **Business Careers:**
+• Digital Marketing
+• Product Management  
+• Business Analysis
+
+🎨 **Creative Careers:**
+• UI/UX Design
+
+🚀 **Emerging Careers:**
+• Blockchain Technology
+
+**I can provide for each career:**
+✅ Detailed career roadmaps
+✅ Required skills and learning path
+✅ Salary expectations
+✅ Job market demand
+✅ Top hiring companies
+
+**Which career path would you like to explore?**"""
+
+    def _get_general_guidance(self, question):
+        return f"""🤔 **I understand you're asking about:** "{question}"
+
+As your Enhanced Career AI Assistant, I can help you with:
+
+🗺️ **Career Roadmaps** - Step-by-step learning paths
+📊 **Market Insights** - Real-time job trends and demands
+🎯 **Domain Specialization** - Deep dives into specific careers
+💡 **Skill Development** - Structured learning approaches
+💰 **Salary Guidance** - Compensation expectations
+
+**Popular Career Queries:**
+• "Show me AI career roadmap"
+• "What's the job market for data science?"
+• "How to become a cybersecurity expert?"
+• "Digital marketing career path"
+• "Blockchain developer roadmap"
+
+**What specific career guidance are you looking for?**"""
+
+    # Career Roadmap Generators - ALL METHODS INCLUDED
+    def _get_ai_ml_roadmap(self):
+        return """**Phase 1: Foundation (3-4 months)**
+• Learn Python programming basics
+• Study mathematics (Linear Algebra, Calculus, Statistics)
+• Understand basic data structures and algorithms
+
+**Phase 2: Core ML (4-5 months)**
+• Learn machine learning fundamentals
+• Practice with Scikit-learn
+• Work on data preprocessing and EDA
+• Build basic ML projects
+
+**Phase 3: Deep Learning (4-6 months)**
+• Study neural networks and deep learning
+• Learn TensorFlow/PyTorch
+• Work on computer vision or NLP projects
+• Understand model deployment basics
+
+**Phase 4: Specialization (3-4 months)**
+• Choose specialization (CV, NLP, etc.)
+• Build advanced projects
+• Learn MLOps and deployment
+• Prepare for interviews"""
+
+    def _get_data_science_roadmap(self):
+        return """**Phase 1: Foundation (3 months)**
+• Master Python for data analysis
+• Learn SQL for data querying
+• Study statistics and probability
+• Practice data visualization
+
+**Phase 2: Core Skills (4 months)**
+• Learn Pandas, NumPy for data manipulation
+• Practice data cleaning and preprocessing
+• Study machine learning basics
+• Work on analytical projects
+
+**Phase 3: Advanced Topics (4 months)**
+• Learn advanced statistical analysis
+• Study big data tools (Spark)
+• Practice A/B testing and experimentation
+• Build end-to-end data projects
+
+**Phase 4: Specialization (3 months)**
+• Choose domain (business, healthcare, etc.)
+• Learn domain-specific knowledge
+• Build portfolio projects
+• Prepare for data science interviews"""
+
+    def _get_cybersecurity_roadmap(self):
+        return """**Phase 1: Foundation (3 months)**
+• Learn networking fundamentals
+• Understand operating systems (Linux/Windows)
+• Study basic programming (Python)
+• Learn about cyber threats and attacks
+
+**Phase 2: Core Security (4 months)**
+• Study network security principles
+• Learn about cryptography
+• Practice ethical hacking basics
+• Understand security protocols
+
+**Phase 3: Specialization (5 months)**
+• Choose path (penetration testing, security analysis)
+• Get hands-on with security tools
+• Practice in controlled environments
+• Study compliance and regulations
+
+**Phase 4: Advanced (3 months)**
+• Learn advanced threat detection
+• Study cloud security
+• Get relevant certifications
+• Build security portfolio"""
+
+    def _get_cloud_roadmap(self):
+        return """**Phase 1: Foundation (2 months)**
+• Learn cloud computing concepts
+• Choose a platform (AWS/Azure/GCP)
+• Understand basic services and pricing
+• Study networking fundamentals
+
+**Phase 2: Core Services (3 months)**
+• Learn compute services (EC2, Lambda)
+• Understand storage solutions (S3, EBS)
+• Study database services (RDS, DynamoDB)
+• Practice with hands-on labs
+
+**Phase 3: Advanced Topics (4 months)**
+• Learn about security and IAM
+• Study containerization (Docker, Kubernetes)
+• Understand DevOps and CI/CD
+• Practice infrastructure as code
+
+**Phase 4: Specialization (3 months)**
+• Get cloud certifications
+• Build complex projects
+• Learn about architecture design
+• Prepare for cloud roles"""
+
+    def _get_digital_marketing_roadmap(self):
+        return """**Phase 1: Foundation (2 months)**
+• Learn marketing fundamentals
+• Understand digital marketing landscape
+• Study consumer behavior
+• Learn about marketing funnel
+
+**Phase 2: Core Channels (3 months)**
+• Master SEO and SEM
+• Learn social media marketing
+• Understand email marketing
+• Study content marketing
+
+**Phase 3: Analytics & Tools (2 months)**
+• Learn Google Analytics
+• Study marketing automation tools
+• Understand A/B testing
+• Practice campaign analysis
+
+**Phase 4: Strategy & Management (3 months)**
+• Learn marketing strategy
+• Study budget management
+• Understand ROI measurement
+• Build marketing portfolio"""
+
+    def _get_product_management_roadmap(self):
+        return """**Phase 1: Foundation (2 months)**
+• Learn product management basics
+• Understand agile methodologies
+• Study market research techniques
+• Learn about user-centered design
+
+**Phase 2: Core Skills (3 months)**
+• Master requirement gathering
+• Learn prioritization frameworks
+• Study product metrics and analytics
+• Understand roadmap planning
+
+**Phase 3: Execution (3 months)**
+• Learn about development processes
+• Study launch strategies
+• Understand user feedback collection
+• Practice stakeholder management
+
+**Phase 4: Leadership (2 months)**
+• Learn product strategy
+• Study team leadership
+• Understand business alignment
+• Build product portfolio"""
+
+    def _get_ui_ux_roadmap(self):
+        return """**Phase 1: Design Foundation (2 months)**
+• Learn design principles
+• Study color theory and typography
+• Understand user psychology
+• Practice with design tools (Figma)
+
+**Phase 2: UX Research (2 months)**
+• Learn user research methods
+• Study information architecture
+• Practice wireframing
+• Understand usability principles
+
+**Phase 3: UI Design (3 months)**
+• Master visual design
+• Learn prototyping
+• Study interaction design
+• Practice design systems
+
+**Phase 4: Portfolio & Specialization (3 months)**
+• Build complete projects
+• Learn about specific industries
+• Study advanced UX methodologies
+• Prepare for design interviews"""
+
+    def _get_blockchain_roadmap(self):
+        return """**Phase 1: Foundation (2 months)**
+• Learn blockchain fundamentals
+• Understand cryptography basics
+• Study Bitcoin and Ethereum
+• Learn about smart contracts
+
+**Phase 2: Development (3 months)**
+• Learn Solidity programming
+• Understand Web3 development
+• Practice with development frameworks
+• Study decentralized applications
+
+**Phase 3: Advanced Concepts (3 months)**
+• Learn about different consensus mechanisms
+• Study token economics
+• Understand security best practices
+• Practice with test networks
+
+**Phase 4: Specialization (2 months)**
+• Choose specialization (DeFi, NFTs, etc.)
+• Build complex dApps
+• Learn about blockchain security
+• Prepare for blockchain roles"""
+
+    def _get_business_analysis_roadmap(self):
+        return """**Phase 1: Foundation (2 months)**
+• Learn business analysis fundamentals
+• Understand requirements gathering
+• Study process modeling techniques
+• Learn about stakeholder management
+
+**Phase 2: Core Skills (3 months)**
+• Master requirements documentation
+• Learn data analysis basics
+• Study business process improvement
+• Understand project management basics
+
+**Phase 3: Technical Skills (3 months)**
+• Learn SQL for data querying
+• Understand basic system architecture
+• Study data visualization tools
+• Practice with BA tools (JIRA, Confluence)
+
+**Phase 4: Specialization (2 months)**
+• Choose industry domain
+• Learn domain-specific knowledge
+• Build BA portfolio
+• Prepare for business analyst roles"""
+
+# Global enhanced career AI instance
+enhanced_career_ai = EnhancedCareerAI()
+
+# ==================== ROUTES ====================
+
+@app.route('/')
+def index():
+    print("🌐 Home page accessed")
+    return render_template('index.html')
+
+@app.route('/career-agent')
+def career_agent_route():
+    if 'user_id' not in session:
+        flash('Please login first', 'error')
+        return redirect(url_for('index'))
+    print(f"🤖 Enhanced Career agent accessed by: {session['user_id']}")
+    return render_template('career_agent.html')
+
+@app.route('/ask', methods=['POST'])
+def ask():
+    print("🔍 /ask route called")
+    
+    if 'user_id' not in session:
+        print("❌ Unauthorized access to /ask")
+        return jsonify({'error': 'Please login first'})
+    
+    try:
+        user_message = request.form.get('message', '').strip()
+        
+        print(f"💬 User question: {user_message}")
+        
+        if not user_message:
+            print("❌ Empty message received")
+            return jsonify({'error': 'Message cannot be empty'})
+        
+        # Get response from enhanced career AI
+        bot_response = enhanced_career_ai.understand_and_respond(user_message)
+        print(f"🤖 Enhanced AI Response generated successfully")
+        
+        return jsonify({
+            'response': bot_response,
+            'status': 'success'
+        })
+        
+    except Exception as e:
+        print(f"❌ Error in ask route: {e}")
+        return jsonify({
+            'error': 'Sorry, I encountered an error. Please try again.',
+            'status': 'error'
+        })
+
+@app.route('/test')
+def test():
+    print("🧪 Test route accessed")
+    return jsonify({'message': 'Enhanced Career AI Server is working!'})
+
+@app.route('/logout')
+def logout():
+    user_id = session.get('user_id', 'Unknown')
+    session.clear()
+    print(f"👋 User logged out: {user_id}")
+    flash('You have been logged out successfully!', 'info')
+    return redirect(url_for('index'))
+
+if __name__ == '__main__':
+    print("=" * 60)
+    print("🚀 Starting Enhanced Flask Server...")
+    print(f"📍 Server running on: http://127.0.0.1:5000")
+    print(f"🔧 Debug mode: {True}")
+    print("=" * 60)
+    app.run(debug=True, host='127.0.0.1', port=5000, use_reloader=False)

@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI BASED Career GUIDANCE SYSTEM</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #667eea;
+            --secondary: #764ba2;
+        }
+        
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: white;
+        }
+        
+        .hero-section {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+        }
+        
+        .feature-card {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 15px;
+            padding: 2rem;
+            margin: 1rem 0;
+            backdrop-filter: blur(10px);
+            transition: transform 0.3s ease;
+        }
+        
+        .feature-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .login-card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            color: #333;
+        }
+        
+        .btn-gradient {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            border: none;
+            color: white;
+            padding: 12px 30px;
+            border-radius: 25px;
+            font-weight: 500;
+            transition: transform 0.3s ease;
+        }
+        
+        .btn-gradient:hover {
+            transform: translateY(-2px);
+            color: white;
+        }
+        
+        .nav-tabs .nav-link {
+            color: #666;
+            font-weight: 500;
+        }
+        
+        .nav-tabs .nav-link.active {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            color: white;
+            border: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="#">
+                <i class="fas fa-robot me-2"></i>AI Career Guidance System
+            </a>
+            <div class="navbar-nav ms-auto">
+                <a href="/admin-login" class="btn btn-outline-light btn-sm">
+                    <i class="fas fa-cog me-1"></i> Admin Login
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <div class="hero-section">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-lg-6">
+                    <h1 class="display-4 fw-bold mb-4">
+                        Discover Your Perfect Career Path with AI
+                    </h1>
+                    <p class="lead mb-5">
+                        Get personalized career recommendations based on your skills, interests, and education level. 
+                        Our AI-powered system analyzes your profile to suggest the best career opportunities for you.
+                    </p>
+                    
+                    <div class="row text-center mb-5">
+                        <div class="col-md-4">
+                            <div class="feature-card">
+                                <i class="fas fa-robot fa-2x mb-3"></i>
+                                <h5>AI-Powered</h5>
+                                <p class="small mb-0">Smart career recommendations</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="feature-card">
+                                <i class="fas fa-graduation-cap fa-2x mb-3"></i>
+                                <h5>Personalized</h5>
+                                <p class="small mb-0">Tailored to your profile</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="feature-card">
+                                <i class="fas fa-briefcase fa-2x mb-3"></i>
+                                <h5>Comprehensive</h5>
+                                <p class="small mb-0">Tech, non-tech & government jobs</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-6">
+                    <div class="login-card p-4">
+                        <!-- Flash Messages -->
+                        {% with messages = get_flashed_messages(with_categories=true) %}
+                            {% if messages %}
+                                {% for category, message in messages %}
+                                    <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show">
+                                        {{ message }}
+                                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                                    </div>
+                                {% endfor %}
+                            {% endif %}
+                        {% endwith %}
+
+                        <ul class="nav nav-tabs nav-justified mb-4" id="authTabs">
+                            <li class="nav-item">
+                                <a class="nav-link active" data-bs-toggle="tab" href="#login">Login</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" data-bs-toggle="tab" href="#signup">Sign Up</a>
+                            </li>
+                        </ul>
+
+                        <div class="tab-content">
+                            <!-- Login Tab -->
+                            <div class="tab-pane fade show active" id="login">
+                                <form action="/login" method="POST">
+                                    <div class="mb-3">
+                                        <label for="loginEmail" class="form-label">Email Address</label>
+                                        <input type="email" class="form-control" id="loginEmail" name="email" placeholder="Enter your email" required value="test@example.com">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="loginPassword" class="form-label">Password</label>
+                                        <input type="password" class="form-control" id="loginPassword" name="password" placeholder="Enter your password" required value="password123">
+                                    </div>
+                                    <button type="submit" class="btn btn-gradient w-100">
+                                        <i class="fas fa-sign-in-alt me-2"></i> Login
+                                    </button>
+                                </form>
+                                
+                                <div class="text-center mt-3">
+                                    <small class="text-muted">
+                                        <i class="fas fa-info-circle me-1"></i>
+                                        Don't have an account? <a href="/signup">Sign up here</a>
+                                    </small>
+                                </div>
+                            </div>
+
+                            <!-- Signup Tab -->
+                            <div class="tab-pane fade" id="signup">
+                                <form action="/signup" method="POST">
+                                    <div class="mb-3">
+                                        <label for="signupName" class="form-label">Full Name</label>
+                                        <input type="text" class="form-control" id="signupName" name="name" placeholder="Enter your full name" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="signupEmail" class="form-label">Email Address</label>
+                                        <input type="email" class="form-control" id="signupEmail" name="email" placeholder="Enter your email" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="signupPassword" class="form-label">Password</label>
+                                        <input type="password" class="form-control" id="signupPassword" name="password" placeholder="Create a password (min 6 characters)" required minlength="6">
+                                    </div>
+                                    <button type="submit" class="btn btn-gradient w-100">
+                                        <i class="fas fa-user-plus me-2"></i> Create Account
+                                    </button>
+                                </form>
+                                
+                                <div class="text-center mt-3">
+                                    <small class="text-muted">
+                                        <i class="fas fa-info-circle me-1"></i>
+                                        Already have an account? <a href="#" onclick="switchToLogin()">Login here</a>
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Demo Credentials -->
+                        <div class="alert alert-info mt-4">
+                            <h6 class="alert-heading"><i class="fas fa-flask me-2"></i>Demo Access</h6>
+                            <p class="mb-1 small">Use these credentials to test the system:</p>
+                            <p class="mb-0 small">
+                                <strong>Email:</strong> <br>
+                                <strong>Password:</strong>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Features Section -->
+    <section class="py-5" style="background: rgba(255,255,255,0.1);">
+        <div class="container">
+            <div class="row text-center mb-5">
+                <div class="col-12">
+                    <h2 class="fw-bold">How It Works</h2>
+                    <p class="lead">Three simple steps to your dream career</p>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-4 text-center">
+                    <div class="feature-card">
+                        <div class="display-6 text-primary mb-3">1</div>
+                        <h4>Create Profile</h4>
+                        <p>Sign up and tell us about your education level, skills, and interests</p>
+                    </div>
+                </div>
+                <div class="col-md-4 text-center">
+                    <div class="feature-card">
+                        <div class="display-6 text-success mb-3">2</div>
+                        <h4>AI Analysis</h4>
+                        <p>Our AI analyzes your profile against thousands of career paths</p>
+                    </div>
+                </div>
+                <div class="col-md-4 text-center">
+                    <div class="feature-card">
+                        <div class="display-6 text-warning mb-3">3</div>
+                        <h4>Get Recommendations</h4>
+                        <p>Receive personalized career suggestions with detailed insights</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="py-4 text-center">
+        <div class="container">
+            <p class="mb-0">
+                &copy; 2025 AI BASED Career GUIDANCE SYSTEM. All rights reserved.
+            </p>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function switchToSignup() {
+            const signupTab = new bootstrap.Tab(document.querySelector('#authTabs a[href="#signup"]'));
+            signupTab.show();
+        }
+        
+        function switchToLogin() {
+            const loginTab = new bootstrap.Tab(document.querySelector('#authTabs a[href="#login"]'));
+            loginTab.show();
+        }
+        
+        // Auto-switch to signup if there are signup-related flash messages
+        document.addEventListener('DOMContentLoaded', function() {
+            const flashMessages = document.querySelectorAll('.alert');
+            flashMessages.forEach(alert => {
+                if (alert.textContent.includes('created successfully') || alert.textContent.includes('Sign up')) {
+                    switchToSignup();
+                }
+            });
+        });
+    </script>
+</body>
+</html>

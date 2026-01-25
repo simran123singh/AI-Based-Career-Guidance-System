@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Profile - CareerGuidance AI</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { background: #f8f9fa; }
+        .profile-header {
+            background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
+            color: white;
+            border-radius: 10px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+        .profile-pic {
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            border: 5px solid rgba(255,255,255,0.3);
+            object-fit: cover;
+        }
+        .stat-card {
+            border: none;
+            border-radius: 10px;
+            transition: transform 0.3s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+        .skill-badge {
+            background: #e9ecef;
+            color: #495057;
+            padding: 8px 15px;
+            border-radius: 20px;
+            margin: 5px;
+            display: inline-block;
+        }
+        .progress {
+            height: 10px;
+        }
+        .navbar-brand {
+            font-weight: bold;
+        }
+        .career-match {
+            border-left: 4px solid #007bff;
+            padding-left: 15px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/dashboard">
+                🎯 CareerPath AI
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/dashboard">Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/profile">Profile</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/assessment">Take Assessment</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/career-agent">Career Agent</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/recommendations">Recommendations</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link text-warning" href="/logout">Logout</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- Profile Header -->
+        <div class="profile-header">
+            <div class="row align-items-center">
+                <div class="col-md-3 text-center">
+                    <img src="https://ui-avatars.com/api/?name={{ user.name }}&background=random&size=150" 
+                         alt="Profile Picture" class="profile-pic">
+                </div>
+                <div class="col-md-9">
+                    <h2>{{ user.name }}</h2>
+                    <p class="mb-1"><i class="bi bi-envelope"></i> {{ user.email }}</p>
+                    <p class="mb-1"><strong>Education Level:</strong> 
+                        {% if user.education_level and user.education_level != 'general' %}
+                            {{ user.education_level.title() }}
+                        {% else %}
+                            Not selected yet
+                        {% endif %}
+                    </p>
+                    <p class="mb-1"><strong>Member Since:</strong> {{ user.created_at }}</p>
+                    <div class="mt-3">
+                        {% if user.completed_questionnaire %}
+                            <span class="badge bg-success me-2">Assessment Completed</span>
+                        {% else %}
+                            <span class="badge bg-warning me-2">Assessment Pending</span>
+                        {% endif %}
+                        <span class="badge bg-info">Profile {{ user.profile_completion }}% Complete</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Personal Information -->
+            <div class="col-lg-4 mb-4">
+                <div class="card stat-card">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="card-title mb-0">👤 Personal Information</h5>
+                    </div>
+                    <div class="card-body">
+                        <table class="table table-borderless">
+                            <tr>
+                                <td><strong>Full Name</strong></td>
+                                <td>{{ user.name }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Email</strong></td>
+                                <td>{{ user.email }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Education Level</strong></td>
+                                <td>
+                                    {% if user.education_level and user.education_level != 'general' %}
+                                        {{ user.education_level.title() }}
+                                    {% else %}
+                                        <span class="text-muted">Not selected</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>Profile Completion</strong></td>
+                                <td>
+                                    <div class="progress" style="height: 8px;">
+                                        <div class="progress-bar bg-success" role="progressbar" style="width: {{ user.profile_completion }}%"></div>
+                                    </div>
+                                    <small>{{ user.profile_completion }}%</small>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>Assessment Status</strong></td>
+                                <td>
+                                    {% if user.completed_questionnaire %}
+                                        <span class="badge bg-success">Completed</span>
+                                    {% else %}
+                                        <span class="badge bg-warning">Not Started</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        </table>
+                        
+                        <!-- Education Level Selection -->
+                        {% if not user.education_level or user.education_level == 'general' %}
+                        <div class="mt-3 p-3 bg-light rounded">
+                            <h6>🎓 Select Your Education Level</h6>
+                            <div class="btn-group-vertical w-100">
+                                <a href="/select-education/undergraduate" class="btn btn-outline-primary text-start mb-2">
+                                    🎓 Undergraduate Student
+                                </a>
+                                <a href="/select-education/graduate" class="btn btn-outline-success text-start mb-2">
+                                    📚 Graduate Student  
+                                </a>
+                                <a href="/select-education/postgraduate" class="btn btn-outline-info text-start">
+                                    🎯 Postgraduate Student
+                                </a>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Quick Actions -->
+                <div class="card stat-card mt-4">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="card-title mb-0">🚀 Quick Actions</h5>
+                    </div>
+                    <div class="card-body">
+                        {% if not user.completed_questionnaire %}
+                            <a href="/questionnaire/{{ user.education_level if user.education_level and user.education_level != 'general' else 'undergraduate' }}" 
+                               class="btn btn-primary w-100 mb-2">
+                                📝 Take Career Assessment
+                            </a>
+                        {% else %}
+                            <a href="/recommendations" class="btn btn-success w-100 mb-2">
+                                🎯 View Recommendations
+                            </a>
+                        {% endif %}
+                        
+                        <a href="/career-agent" class="btn btn-outline-dark w-100 mb-2">
+                            🤖 Career AI Assistant
+                        </a>
+                        
+                        <a href="/resume-upload" class="btn btn-outline-primary w-100">
+                            📄 Resume Analysis
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Content Area -->
+            <div class="col-lg-8 mb-4">
+                {% if user.completed_questionnaire and session.get('questionnaire_data') %}
+                <!-- User has completed questionnaire -->
+                <div class="card stat-card">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="card-title mb-0">📊 Your Assessment Results</h5>
+                    </div>
+                    <div class="card-body">
+                        {% set q_data = session.get('questionnaire_data', {}) %}
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6>Field of Interest</h6>
+                                <p class="fw-bold">{{ q_data.get('field_of_study', 'Not specified') }}</p>
+                                
+                                <h6>Technical Skills</h6>
+                                <p>{{ q_data.get('technical_skills', 'Not specified') }}</p>
+                                
+                                <h6>Work Environment Preference</h6>
+                                <p>{{ q_data.get('work_environment', 'Not specified') }}</p>
+                            </div>
+                            <div class="col-md-6">
+                                <h6>Interests</h6>
+                                <div class="mb-3">
+                                    {% for interest in q_data.get('interests', []) %}
+                                    <span class="skill-badge">{{ interest }}</span>
+                                    {% else %}
+                                    <span class="text-muted">No interests specified</span>
+                                    {% endfor %}
+                                </div>
+                                
+                                <h6>Experience Level</h6>
+                                <p>{{ q_data.get('experience', 'Not specified') }}</p>
+                                
+                                <h6>Assessment Date</h6>
+                                <p>{{ q_data.get('submitted_at', 'Not available') }}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Career Recommendations Preview -->
+                <div class="card stat-card mt-4">
+                    <div class="card-header bg-warning text-dark">
+                        <h5 class="card-title mb-0">🎯 Your Career Matches</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted">Based on your assessment and education level ({{ user.education_level.title() }})</p>
+                        
+                        <div class="row">
+                            {% set recommendations = [] %}
+                            {% if user.education_level == 'undergraduate' %}
+                                {% set recommendations = [
+                                    {'title': '💻 Software Developer Intern', 'match': '85%', 'skills': 'Python, Java, Problem Solving'},
+                                    {'title': '📊 Data Analyst Trainee', 'match': '78%', 'skills': 'SQL, Excel, Statistics'},
+                                    {'title': '🔒 Cybersecurity Intern', 'match': '82%', 'skills': 'Networking, Security Basics'}
+                                ] %}
+                            {% elif user.education_level == 'graduate' %}
+                                {% set recommendations = [
+                                    {'title': '💻 Junior Software Engineer', 'match': '88%', 'skills': 'Java, Spring Boot, SQL'},
+                                    {'title': '📈 Business Analyst', 'match': '82%', 'skills': 'Requirements Analysis, SQL'},
+                                    {'title': '🌐 Full Stack Developer', 'match': '85%', 'skills': 'JavaScript, React, Node.js'}
+                                ] %}
+                            {% elif user.education_level == 'postgraduate' %}
+                                {% set recommendations = [
+                                    {'title': '🧠 AI Research Scientist', 'match': '92%', 'skills': 'Python, TensorFlow, Research'},
+                                    {'title': '💼 Senior Product Manager', 'match': '89%', 'skills': 'Strategy, Leadership, Analytics'},
+                                    {'title': '☁️ Cloud Architect', 'match': '87%', 'skills': 'AWS, Kubernetes, Security'}
+                                ] %}
+                            {% endif %}
+                            
+                            {% for career in recommendations %}
+                            <div class="col-md-6 mb-3">
+                                <div class="career-match">
+                                    <h6>{{ career.title }}</h6>
+                                    <div class="progress mb-2">
+                                        <div class="progress-bar" role="progressbar" style="width: {{ career.match }}"></div>
+                                    </div>
+                                    <small class="text-muted">{{ career.match }} Match</small>
+                                    <p class="small mt-1 text-muted">Skills: {{ career.skills }}</p>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        
+                        <div class="text-center mt-3">
+                            <a href="/recommendations" class="btn btn-primary">View All Recommendations</a>
+                        </div>
+                    </div>
+                </div>
+
+                {% elif user.education_level and user.education_level != 'general' %}
+                <!-- Education level selected but no questionnaire -->
+                <div class="card stat-card">
+                    <div class="card-body text-center py-5">
+                        <h3>🚀 Ready to Discover Your Career Path?</h3>
+                        <p class="text-muted mb-4">Complete your career assessment to get personalized recommendations based on your skills and interests.</p>
+                        <a href="/questionnaire/{{ user.education_level }}" class="btn btn-primary btn-lg">Take Career Assessment</a>
+                        <div class="mt-4">
+                            <small class="text-muted">Takes approximately 15-20 minutes • Tailored for {{ user.education_level.title() }} students</small>
+                        </div>
+                    </div>
+                </div>
+
+                {% else %}
+                <!-- New user - no education level selected -->
+                <div class="card stat-card">
+                    <div class="card-body text-center py-5">
+                        <h3>🎓 Welcome to CareerPath AI!</h3>
+                        <p class="text-muted mb-4">Start your career journey by selecting your education level to get personalized guidance.</p>
+                        
+                        <div class="row justify-content-center">
+                            <div class="col-md-8">
+                                <div class="btn-group-vertical w-100">
+                                    <a href="/select-education/undergraduate" class="btn btn-outline-primary text-start mb-3 p-3">
+                                        <strong>🎓 Undergraduate Student</strong><br>
+                                        <small>Currently pursuing bachelor's degree</small>
+                                    </a>
+                                    <a href="/select-education/graduate" class="btn btn-outline-success text-start mb-3 p-3">
+                                        <strong>📚 Graduate Student</strong><br>
+                                        <small>Currently pursuing master's degree</small>
+                                    </a>
+                                    <a href="/select-education/postgraduate" class="btn btn-outline-info text-start p-3">
+                                        <strong>🎯 Postgraduate Student</strong><br>
+                                        <small>PhD or advanced research studies</small>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-4">
+                            <small class="text-muted">Your selection will customize the career assessment and recommendations</small>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Resume Analysis Section -->
+                {% if session.get('resume_data') %}
+                <div class="card stat-card mt-4">
+                    <div class="card-header bg-dark text-white">
+                        <h5 class="card-title mb-0">📄 Resume Analysis</h5>
+                    </div>
+                    <div class="card-body">
+                        {% set resume_data = session.get('resume_data', {}) %}
+                        <h6>Extracted Skills</h6>
+                        <div class="mb-3">
+                            {% for category, skills in resume_data.get('skills', {}).items() %}
+                                {% for skill in skills %}
+                                <span class="skill-badge">{{ skill }}</span>
+                                {% endfor %}
+                            {% endfor %}
+                        </div>
+                        <a href="/resume-results" class="btn btn-outline-primary">View Detailed Analysis</a>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Progress Tracking -->
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">📈 Your Career Journey Progress</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center">
+                            <div class="col-md-3 mb-3">
+                                <div class="p-3 border rounded">
+                                    <h4>{% if user.education_level and user.education_level != 'general' %}✅{% else %}⏳{% endif %}</h4>
+                                    <h6>Education Level</h6>
+                                    <small class="text-muted">Step 1 of 4</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <div class="p-3 border rounded">
+                                    <h4>{% if user.completed_questionnaire %}✅{% else %}⏳{% endif %}</h4>
+                                    <h6>Career Assessment</h6>
+                                    <small class="text-muted">Step 2 of 4</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <div class="p-3 border rounded">
+                                    <h4>{% if session.get('resume_data') %}✅{% else %}⏳{% endif %}</h4>
+                                    <h6>Resume Analysis</h6>
+                                    <small class="text-muted">Step 3 of 4</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <div class="p-3 border rounded">
+                                    <h4>{% if user.completed_questionnaire %}✅{% else %}⏳{% endif %}</h4>
+                                    <h6>Get Recommendations</h6>
+                                    <small class="text-muted">Step 4 of 4</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

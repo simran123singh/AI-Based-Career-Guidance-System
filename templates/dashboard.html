@@ -1,0 +1,435 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - AI BASED Career GUIDANCE SYSTEM</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #667eea;
+            --secondary: #764ba2;
+            --success: #28a745;
+            --info: #17a2b8;
+            --warning: #ffc107;
+            --light: #f8f9fa;
+        }
+        
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: #f8f9fa;
+            color: #333;
+        }
+        
+        .navbar-brand {
+            font-weight: 700;
+            font-size: 1.5rem;
+        }
+        
+        .welcome-section {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            color: white;
+            border-radius: 15px;
+            padding: 3rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        .education-card, .feature-card {
+            border: none;
+            border-radius: 15px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            height: 100%;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        
+        .education-card:hover, .feature-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 8px 16px rgba(0,0,0,0.15);
+        }
+        
+        .card-icon {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        .stats-card {
+            border-radius: 15px;
+            border: none;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        
+        .progress {
+            height: 8px;
+            border-radius: 10px;
+        }
+        
+        .user-welcome {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            border-radius: 15px;
+            padding: 1.5rem;
+        }
+        
+        .recent-activity {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .activity-item {
+            padding: 0.75rem 1rem;
+            border-left: 3px solid var(--primary);
+            margin-bottom: 0.5rem;
+            background: white;
+            border-radius: 0 8px 8px 0;
+        }
+        
+        footer {
+            background: #343a40;
+            color: white;
+            padding: 2rem 0;
+            margin-top: 3rem;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation Bar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top">
+        <div class="container">
+            <a class="navbar-brand" href="/dashboard">
+                <i class="fas fa-robot me-2"></i>AI Career Guide
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/dashboard">Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/career-agent">AI Career Agent</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/resume-upload">Resume Analysis</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/recommendations">My Recommendations</a>
+                    </li>
+                </ul>
+                <div class="navbar-nav">
+                    {% if session.demo_mode %}
+                    <span class="navbar-text text-warning me-3">
+                        <i class="fas fa-info-circle me-1"></i>Demo Mode
+                    </span>
+                    {% endif %}
+                    <div class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-user-circle me-1"></i> {{ session.user_name }}
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="/profile"><i class="fas fa-user me-2"></i>Profile</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="/logout"><i class="fas fa-sign-out-alt me-2"></i>Logout</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container mt-4">
+        <!-- Welcome Section -->
+        <div class="welcome-section text-center">
+            <h1 class="display-5 fw-bold">Welcome to AI-Career GUIDANCE SYSTEM</h1>
+            <p class="lead">Hello {{ session.user_name }}! Let's discover the perfect career path tailored just for you</p>
+            <div class="mt-4">
+                <span class="badge bg-light text-dark me-2 p-2"><i class="fas fa-brain me-1"></i> AI-Powered Analysis</span>
+                <span class="badge bg-light text-dark me-2 p-2"><i class="fas fa-user-graduate me-1"></i> Personalized Guidance</span>
+                <span class="badge bg-light text-dark p-2"><i class="fas fa-chart-line me-1"></i> Smart Recommendations</span>
+            </div>
+        </div>
+
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show">
+                        <i class="fas fa-{{ 'exclamation-triangle' if category == 'error' else 'check-circle' }} me-2"></i>
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- User Stats & Progress -->
+        <div class="row mb-4">
+            <div class="col-md-8">
+                <div class="user-welcome">
+                    <div class="row align-items-center">
+                        <div class="col-md-8">
+                            <h4><i class="fas fa-rocket me-2"></i>Continue Your Career Discovery</h4>
+                            <p class="mb-0">Complete your profile to get more accurate AI recommendations</p>
+                        </div>
+                        <div class="col-md-4 text-end">
+                            <div class="progress mb-2">
+                                <div class="progress-bar bg-light" role="progressbar" style="width: {{ profile.profile_completion if profile else 0 }}%" 
+                                     aria-valuenow="{{ profile.profile_completion if profile else 0 }}" aria-valuemin="0" aria-valuemax="100"></div>
+                            </div>
+                            <small>Profile Completion: {{ profile.profile_completion if profile else 0 }}%</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card stats-card bg-primary text-white h-100">
+                    <div class="card-body text-center">
+                        <h2>5-8</h2>
+                        <p class="mb-0"><i class="fas fa-briefcase me-1"></i>Career Paths Available</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Education Level Cards -->
+        <!-- Education Level Cards -->
+<div class="row mb-5">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h3 class="mb-0"><i class="fas fa-graduation-cap me-2"></i>Select Your Education Level</h3>
+            <a href="/recommendations" class="btn btn-outline-warning btn-sm">
+                <i class="fas fa-briefcase me-1"></i>View Recommendations
+            </a>
+        </div>
+    </div>
+    <div class="col-md-4 mb-4">
+        <a href="/select-education/undergraduate" class="text-decoration-none">
+            <div class="card education-card bg-primary text-white">
+                <div class="card-body p-4 text-center">
+                    <div class="card-icon">
+                        <i class="fas fa-user-graduate"></i>
+                    </div>
+                    <h3>Undergraduate</h3>
+                    <p>Currently pursuing Bachelor's degree</p>
+                    <small><i class="fas fa-clock me-1"></i> I'm a college student</small>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-4 mb-4">
+        <a href="/select-education/graduate" class="text-decoration-none">
+            <div class="card education-card bg-success text-white">
+                <div class="card-body p-4 text-center">
+                    <div class="card-icon">
+                        <i class="fas fa-user-graduate"></i>
+                    </div>
+                    <h3>Graduate</h3>
+                    <p>Completed Bachelor's degree</p>
+                    <small><i class="fas fa-check me-1"></i> I have a Bachelor's degree</small>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-4 mb-4">
+        <a href="/select-education/postgraduate" class="text-decoration-none">
+            <div class="card education-card bg-info text-white">
+                <div class="card-body p-4 text-center">
+                    <div class="card-icon">
+                        <i class="fas fa-user-tie"></i>
+                    </div>
+                    <h3>Postgraduate</h3>
+                    <p>Master's or PhD level</p>
+                    <small><i class="fas fa-star me-1"></i> I have advanced degrees</small>
+                </div>
+            </div>
+        </a>
+    </div>
+</div>
+
+        <!-- AI Features Section -->
+        <div class="row mb-5">
+            <div class="col-12">
+                <h3 class="mb-4"><i class="fas fa-robot me-2"></i>AI Powered Features</h3>
+            </div>
+            <div class="col-md-6 mb-4">
+                <a href="/career-agent" class="text-decoration-none">
+                    <div class="card feature-card bg-info text-white">
+                        <div class="card-body p-4">
+                            <div class="row align-items-center">
+                                <div class="col-3 text-center">
+                                    <i class="fas fa-robot card-icon"></i>
+                                </div>
+                                <div class="col-9">
+                                    <h3>AI Career Agent</h3>
+                                    <p class="mb-1">Get instant answers to your career questions</p>
+                                    <small>Ask about careers, skills, salaries, and more</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            <div class="col-md-6 mb-4">
+                <a href="/resume-upload" class="text-decoration-none">
+                    <div class="card feature-card bg-warning text-dark">
+                        <div class="card-body p-4">
+                            <div class="row align-items-center">
+                                <div class="col-3 text-center">
+                                    <i class="fas fa-file-alt card-icon"></i>
+                                </div>
+                                <div class="col-9">
+                                    <h3>Resume Analysis</h3>
+                                    <p class="mb-1">Upload your resume for personalized job matches</p>
+                                    <small>AI-powered resume analysis and job matching</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </a>
+            </div>
+        </div>
+
+        <!-- Additional AI Tools -->
+        <div class="row">
+            <div class="col-md-4 mb-4">
+                <div class="card feature-card bg-light">
+                    <div class="card-body p-4 text-center">
+                        <i class="fas fa-chart-bar text-primary card-icon"></i>
+                        <h4>Skill Analysis</h4>
+                        <p>AI assessment of your strengths and improvement areas</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-4">
+                <div class="card feature-card bg-light">
+                    <div class="card-body p-4 text-center">
+                        <i class="fas fa-briefcase text-success card-icon"></i>
+                        <h4>Job Market Insights</h4>
+                        <p>AI analysis of trending jobs and salary information</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-4">
+                <div class="card feature-card bg-light">
+                    <div class="card-body p-4 text-center">
+                        <i class="fas fa-road text-info card-icon"></i>
+                        <h4>AI Learning Path</h4>
+                        <p>Get customized courses to achieve your career goals</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Activity & Quick Actions -->
+        <div class="row mt-5">
+            <div class="col-md-8">
+                <div class="card stats-card">
+                    <div class="card-header bg-white">
+                        <h5 class="mb-0"><i class="fas fa-history me-2"></i>Recent Activity</h5>
+                    </div>
+                    <div class="card-body recent-activity">
+                        {% if profile and profile.completed_questionnaire %}
+                        <div class="activity-item">
+                            <div class="d-flex justify-content-between">
+                                <span><i class="fas fa-search me-2 text-info"></i>Completed AI career assessment</span>
+                                <small class="text-muted">Recently</small>
+                            </div>
+                        </div>
+                        {% endif %}
+                        <div class="activity-item">
+                            <div class="d-flex justify-content-between">
+                                <span><i class="fas fa-user me-2 text-success"></i>Profile created successfully</span>
+                                <small class="text-muted">Today</small>
+                            </div>
+                        </div>
+                        <div class="activity-item">
+                            <div class="d-flex justify-content-between">
+                                <span><i class="fas fa-robot me-2 text-primary"></i>AI Career Agent ready to help</span>
+                                <small class="text-muted">Always available</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card stats-card bg-light">
+                    <div class="card-header bg-white">
+                        <h5 class="mb-0"><i class="fas fa-bolt me-2"></i>Quick Actions</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-grid gap-2">
+                            <a href="/select-education/undergraduate" class="btn btn-outline-primary btn-sm">
+                                <i class="fas fa-pencil-alt me-2"></i>Start Assessment
+                            </a>
+                            <a href="/career-agent" class="btn btn-outline-success btn-sm">
+                                <i class="fas fa-robot me-2"></i>Ask AI Career Agent
+                            </a>
+                            <a href="/recommendations" class="btn btn-outline-info btn-sm">
+                                <i class="fas fa-briefcase me-2"></i>View Job Matches
+                            </a>
+                            <a href="/resume-upload" class="btn btn-outline-warning btn-sm">
+                                <i class="fas fa-file-upload me-2"></i>Upload Resume
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="mt-5">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-4">
+                    <h5><i class="fas fa-robot me-2"></i>AI BASED Career GUIDANCE SYSTEM</h5>
+                    <p>Your intelligent career guidance platform powered by advanced AI to help you find the perfect career path.</p>
+                </div>
+                <div class="col-md-4">
+                    <h5>Quick Links</h5>
+                    <ul class="list-unstyled">
+                        <li><a href="/dashboard" class="text-light">Dashboard</a></li>
+                        <li><a href="/career-agent" class="text-light">AI Career Agent</a></li>
+                        <li><a href="/resume-upload" class="text-light">Resume Analysis</a></li>
+                        <li><a href="/recommendations" class="text-light">My Recommendations</a></li>
+                    </ul>
+                </div>
+                <div class="col-md-4">
+                    <h5>Contact Support</h5>
+                    <ul class="list-unstyled">
+                        <li><i class="fas fa-envelope me-2"></i> support@aicareerguide.com</li>
+                        <li><i class="fas fa-phone me-2"></i> +91 987-123-4567</li>
+                        <li><i class="fas fa-question-circle me-2"></i> 24/7 AI Assistance Available</li>
+                    </ul>
+                </div>
+            </div>
+            <hr class="bg-light">
+            <div class="text-center">
+                <p>&copy; 2025 AI BASED Career GUIDANCE SYSTEM. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Simple animation on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            const cards = document.querySelectorAll('.education-card, .feature-card');
+            cards.forEach((card, index) => {
+                card.style.opacity = '0';
+                card.style.transform = 'translateY(20px)';
+                
+                setTimeout(() => {
+                    card.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+                    card.style.opacity = '1';
+                    card.style.transform = 'translateY(0)';
+                }, index * 100);
+            });
+        });
+    </script>
+</body>
+</html> 
